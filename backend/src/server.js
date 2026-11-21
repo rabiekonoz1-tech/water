@@ -14,8 +14,55 @@ const C = require('./constants');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+// CORS headers for all requests + instant response for OPTIONS preflight
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-code');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-user-code'],
+}));
+
 app.use(express.json({ limit: '15mb' }));
+
+// DB initialization helpers & middleware (runs before any routes)
+let dbReady = false;
+let dbInitPromise = null;
+
+function ensureDb() {
+  if (!dbInitPromise) {
+    dbInitPromise = initDb()
+      .then(() => {
+        dbReady = true;
+      })
+      .catch((err) => {
+        dbInitPromise = null;
+        console.error('❌ Failed to init DB:', err.message);
+        throw err;
+      });
+  }
+  return dbInitPromise;
+}
+
+app.use(async (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+  try {
+    if (!dbReady) {
+      await ensureDb();
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -782,36 +829,6 @@ app.post('/api/sync/batch', authMiddleware, async (req, res, next) => {
 app.use((err, req, res, next) => {
   console.error('❌ Server error:', err.message);
   res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + err.message });
-});
-
-// Boot & DB initialization helpers (works both standalone and on serverless/Vercel)
-let dbReady = false;
-let dbInitPromise = null;
-
-function ensureDb() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb()
-      .then(() => {
-        dbReady = true;
-      })
-      .catch((err) => {
-        dbInitPromise = null;
-        throw err;
-      });
-  }
-  return dbInitPromise;
-}
-
-// Middleware to ensure DB tables exist before handling any request
-app.use(async (req, res, next) => {
-  try {
-    if (!dbReady) {
-      await ensureDb();
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
 });
 
 // Boot when running directly (node src/server.js)
