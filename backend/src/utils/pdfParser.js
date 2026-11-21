@@ -90,20 +90,33 @@ async function extractImagesFromPdf(buffer) {
 }
 
 /**
- * Performs OCR on images using Tesseract (Arabic + English)
+ * Performs OCR on images using a single warm Tesseract worker for high speed & memory efficiency
  */
 async function performOcrOnImages(images) {
   let combinedText = '';
-  console.log(`🔍 Running OCR on ${images.length} page(s)...`);
+  console.log(`🔍 Initializing Tesseract OCR worker for ${images.length} page image(s)...`);
+
+  let worker = null;
+  try {
+    worker = await Tesseract.createWorker('ara+eng');
+  } catch (err) {
+    console.error('Failed to initialize Tesseract worker:', err.message);
+    throw new Error('تعذر تشغيل محرك المسح الضوئي (OCR): ' + err.message);
+  }
 
   for (let i = 0; i < images.length; i++) {
     try {
-      console.log(`📄 OCR processing page ${i + 1}/${images.length}...`);
-      const res = await Tesseract.recognize(images[i], 'ara+eng');
+      console.log(`📄 OCR processing page image ${i + 1}/${images.length}...`);
+      const res = await worker.recognize(images[i]);
       combinedText += `\n--- PAGE ${i + 1} ---\n` + (res.data.text || '') + '\n';
     } catch (err) {
-      console.error(`OCR error on page ${i + 1}:`, err.message);
+      console.warn(`OCR warning on page ${i + 1}:`, err.message);
+      // Continue with other pages rather than failing entire document!
     }
+  }
+
+  if (worker) {
+    await worker.terminate().catch(() => {});
   }
 
   return combinedText;

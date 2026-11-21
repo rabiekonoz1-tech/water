@@ -43,11 +43,56 @@ export const api = {
   getPlans: (code: string): Promise<{ plans: MonthlyPlan[] }> =>
     request('/api/plans', { method: 'GET' }, code),
 
-  uploadPlanExcel: async (code: string, monthLabel: string, file: File) => {
-    const form = new FormData();
-    form.append('month_label', monthLabel);
-    form.append('file', file, file.name);
-    return request('/api/plans/upload', { method: 'POST', body: form }, code);
+  uploadPlanExcel: (
+    code: string,
+    monthLabel: string,
+    file: File,
+    onUploadProgress?: (percent: number) => void
+  ): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const baseUrl = getServerUrl();
+      xhr.open('POST', `${baseUrl}/api/plans/upload`);
+      xhr.setRequestHeader('x-user-code', code);
+
+      if (xhr.upload && onUploadProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            onUploadProgress(pct);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        let data: any = {};
+        try {
+          data = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          data = { error: xhr.statusText || 'حدث خطأ في الخادم' };
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+        } else {
+          reject(new ApiError(data.error || `خطأ ${xhr.status}: ${xhr.statusText}`, xhr.status));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new ApiError('فشل الاتصال بالسيرفر. تأكد من تشغيل السيرفر وعنوان الشبكة.', 0));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new ApiError('انتهت مهلة الانتظار أثناء معالجة المستند. يرجى التأكد من وضوح الصفحات أو المحاولة مجدداً.', 408));
+      };
+
+      xhr.timeout = 240000; // 4 minutes timeout for multi-page OCR
+
+      const form = new FormData();
+      form.append('month_label', monthLabel);
+      form.append('file', file, file.name);
+      xhr.send(form);
+    });
   },
 
   getFacilities: (code: string, planId: string): Promise<{ facilities: Facility[] }> =>

@@ -16,7 +16,10 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 35 * 1024 * 1024 }, // 35MB max to support high-res multi-page scanned PDFs
+});
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 
@@ -230,72 +233,124 @@ app.get('/api/plans', authMiddleware, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Upload plan (Excel or PDF)
-app.post('/api/plans/upload', authMiddleware, adminOnly, upload.single('file'), async (req, res, next) => {
-  if (!req.file) return res.status(400).json({ error: 'يرجى اختيار ملف الخطة (.xlsx أو .xls أو .pdf)' });
-  const monthLabel = String(req.body.month_label || '').trim() ||
-    `خطة ${new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}`;
-  try {
-    if (await queryOne('SELECT id FROM plans WHERE month_label = ?', [monthLabel]))
-      return res.status(409).json({ error: `توجد خطة بنفس الاسم "${monthLabel}" بالفعل. غيّر اسم الشهر لتجنب تكرار الخطة.` });
-
-    let parsed = [];
-    const fileName = (req.file.originalname || '').toLowerCase();
-    const isPdf = fileName.endsWith('.pdf') || req.file.mimetype === 'application/pdf';
-
-    if (isPdf) {
-      parsed = await parsePdfBuffer(req.file.buffer);
-    } else {
-      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
-      parsed = parseExcelRows(rawRows);
-    }
-
-    if (parsed.length === 0)
-      return res.status(400).json({ error: 'لم يتم العثور على منشآت في الملف. تأكد من تطابق أعمدة الجدول (التسلسل، مسمى المنشأة، العنوان، كود المنشأة، تاريخ الإنجاز).' });
-
-    const planId = uuidv4();
-    const now = new Date().toISOString();
-
-    await transaction(async ({ run: tRun }) => {
-      await tRun(
-        'INSERT INTO plans (id, month_label, filename, uploaded_by, total_facilities, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [planId, monthLabel, req.file.originalname || 'plan.xlsx', req.user.name, parsed.length, now]
-      );
-      for (const item of parsed) {
-        await tRun(
-          `INSERT INTO facilities (id, plan_id, serial_no, name, address, center, facility_code, target_date, plan_notes, activity_type, status, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)`,
-          [uuidv4(), planId, item.serial_no, item.name, item.address, item.center, item.facility_code, item.target_date, item.plan_notes, item.activity_type, now]
-        );
+// Upload plan (Excel or PDF) with granular Multer error handling
+app.post(
+  '/api/plans/upload',
+  authMiddleware,
+  adminOnly,
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: 'حجم الملف يتجاوز الحد الأقصى المسموح به (35 ميجابايت). يرجى تقليل حجم الملف أو ضغطه والمحاولة مجدداً.',
+          });
+        }
+        return res.status(400).json({ error: 'خطأ في استقبال الملف: ' + err.message });
+      } else if (err) {
+        return res.status(400).json({ error: 'فشل قراءة الملف المرفوع: ' + err.message });
       }
+      next();
     });
+  },
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'يرجى اختيار ملف الخطة (.xlsx أو .xls أو .pdf)' });
+    }
+    const monthLabel =
+      String(req.body.month_label || '').trim() ||
+      `خطة ${new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}`;
 
-    const byCenter = {};
-    parsed.forEach((p) => { byCenter[p.center] = (byCenter[p.center] || 0) + 1; });
+    try {
+      if (await queryOne('SELECT id FROM plans WHERE month_label = ?', [monthLabel])) {
+        return res.status(409).json({
+          error: `توجد خطة بنفس الاسم "${monthLabel}" بالفعل. غيّر اسم الشهر (مثال: ${monthLabel} - محدث) لتجنب تكرار الخطة.`,
+        });
+      }
 
-    const repeatedRows = await queryAll(
-      `SELECT DISTINCT f.facility_code FROM facilities f
-       JOIN inspections i ON i.facility_id = f.id AND i.record_status = 'valid' AND i.violation_level IN ('major','critical')
-       WHERE f.plan_id <> ? AND f.facility_code IN (${parsed.map(() => '?').join(',')})`,
-      [planId, ...parsed.map((p) => p.facility_code)]
-    );
-    const repeated = repeatedRows.length;
+      let parsed = [];
+      const fileName = (req.file.originalname || '').toLowerCase();
+      const isPdf = fileName.endsWith('.pdf') || req.file.mimetype === 'application/pdf';
 
-    await logActivity({
-      plan_id: planId, facility_name: monthLabel, worker_id: req.user.id, worker_name: req.user.name,
-      action: 'plan_uploaded', summary: `تم رفع خطة ${monthLabel} (${parsed.length} منشأة)`,
-    });
+      if (isPdf) {
+        parsed = await parsePdfBuffer(req.file.buffer);
+      } else {
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+        parsed = parseExcelRows(rawRows);
+      }
 
-    res.status(201).json({
-      plan: await queryOne('SELECT * FROM plans WHERE id = ?', [planId]),
-      inserted: parsed.length,
-      by_center: byCenter,
-      with_prior_major_violations: repeated,
-    });
-  } catch (err) { next(err); }
-});
+      if (!parsed || parsed.length === 0) {
+        return res.status(400).json({
+          error:
+            'لم يتم العثور على منشآت مطابقة في الملف. تأكد من احتواء الجدول على الأعمدة الرئيسية: (التسلسل، مسمى المنشأة الصناعية، العنوان، كود المنشأة، تاريخ الإنجاز).',
+        });
+      }
+
+      const planId = uuidv4();
+      const now = new Date().toISOString();
+
+      await transaction(async ({ run: tRun }) => {
+        await tRun(
+          'INSERT INTO plans (id, month_label, filename, uploaded_by, total_facilities, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [planId, monthLabel, req.file.originalname || 'plan.xlsx', req.user.name, parsed.length, now]
+        );
+        for (const item of parsed) {
+          await tRun(
+            `INSERT INTO facilities (id, plan_id, serial_no, name, address, center, facility_code, target_date, plan_notes, activity_type, status, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)`,
+            [
+              uuidv4(),
+              planId,
+              item.serial_no,
+              item.name,
+              item.address,
+              item.center,
+              item.facility_code,
+              item.target_date,
+              item.plan_notes,
+              item.activity_type,
+              now,
+            ]
+          );
+        }
+      });
+
+      const byCenter = {};
+      parsed.forEach((p) => {
+        byCenter[p.center] = (byCenter[p.center] || 0) + 1;
+      });
+
+      const repeatedRows = await queryAll(
+        `SELECT DISTINCT f.facility_code FROM facilities f
+         JOIN inspections i ON i.facility_id = f.id AND i.record_status = 'valid' AND i.violation_level IN ('major','critical')
+         WHERE f.plan_id <> ? AND f.facility_code IN (${parsed.map(() => '?').join(',')})`,
+        [planId, ...parsed.map((p) => p.facility_code)]
+      );
+      const repeated = repeatedRows.length;
+
+      await logActivity({
+        plan_id: planId,
+        facility_name: monthLabel,
+        worker_id: req.user.id,
+        worker_name: req.user.name,
+        action: 'plan_uploaded',
+        summary: `تم رفع خطة ${monthLabel} (${parsed.length} منشأة)`,
+      });
+
+      res.status(201).json({
+        plan: await queryOne('SELECT * FROM plans WHERE id = ?', [planId]),
+        inserted: parsed.length,
+        by_center: byCenter,
+        with_prior_major_violations: repeated,
+      });
+    } catch (err) {
+      console.error('Plan upload error:', err);
+      res.status(500).json({ error: 'فشل معالجة ملف الخطة: ' + (err.message || 'خطأ غير متوقع') });
+    }
+  }
+);
 
 // Facilities for a plan
 app.get('/api/plans/:planId/facilities', authMiddleware, async (req, res, next) => {

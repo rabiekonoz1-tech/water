@@ -5,7 +5,9 @@ import { LEVEL_COLORS, LEVEL_LABELS, type ViolationLevel } from '../constants';
 import { api } from '../api';
 import {
   AlertTriangleIcon,
+  CheckCircleIcon,
   FileSpreadsheetIcon,
+  RefreshCwIcon,
   UnlockIcon,
   UploadCloudIcon,
   UserPlusIcon,
@@ -28,6 +30,34 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
   const [statsError, setStatsError] = useState('');
   const [conflicts, setConflicts] = useState<ConflictItem[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // Upload Progress & Robust Error States
+  const [uploadPercent, setUploadPercent] = useState<number>(0);
+  const [uploadStage, setUploadStage] = useState<'idle' | 'uploading' | 'processing' | 'ocr' | 'saving' | 'done' | 'error'>('idle');
+  const [uploadStatusText, setUploadStatusText] = useState('');
+  const [uploadSeconds, setUploadSeconds] = useState(0);
+  const [uploadError, setUploadError] = useState<{ title: string; message: string; tip?: string } | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<{
+    inserted: number;
+    month: string;
+    by_center: Record<string, number>;
+    with_prior_major_violations?: number;
+  } | null>(null);
+
+  // Timer effect during active upload / processing
+  useEffect(() => {
+    let interval: any = null;
+    if (uploading) {
+      interval = setInterval(() => {
+        setUploadSeconds((s) => s + 1);
+      }, 1000);
+    } else {
+      setUploadSeconds(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [uploading]);
 
   const loadWorkers = async () => {
     try {
@@ -67,29 +97,116 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
     loadStats();
   }, [loadStats, facilities]);
 
-  const handleUploadExcel = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUploadPlan = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    // 1. Validation: Month Label
     if (!monthLabel.trim()) {
-      alert('اكتب اسم الشهر أولاً (مثال: ديسمبر 2026)');
+      setUploadError({
+        title: 'اسم الشهر مطلوب',
+        message: 'يرجى كتابة اسم الشهر أولاً قبل رفع الخطة.',
+        tip: 'مثال: "نوفمبر 2026" أو "خطة ديسمبر 2026".',
+      });
       return;
     }
+
+    // 2. Validation: File Selection
     if (!selectedFile) {
-      alert('يرجى اختيار ملف Excel');
+      setUploadError({
+        title: 'لم يتم اختيار ملف',
+        message: 'يرجى اختيار ملف الخطة (Excel أو PDF) من جهازك.',
+        tip: 'الملفات المدعومة هي .xlsx و .xls و .pdf.',
+      });
+      return;
+    }
+
+    // 3. Validation: File Size limit (35MB)
+    const maxBytes = 35 * 1024 * 1024;
+    if (selectedFile.size > maxBytes) {
+      setUploadError({
+        title: 'حجم الملف يتجاوز الحد الأقصى',
+        message: `حجم الملف المحدد هو ${(selectedFile.size / (1024 * 1024)).toFixed(1)} ميجابايت، بينما الحد الأقصى المسموح به هو 35 ميجابايت.`,
+        tip: 'إذا كان الملف مصوراً بـ CamScanner، يمكنك تقليل دقة المسح الضوئي أو ضغط الـ PDF.',
+      });
+      return;
+    }
+
+    // 4. Validation: File Extension
+    const lowerName = selectedFile.name.toLowerCase();
+    const isPdf = lowerName.endsWith('.pdf');
+    const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+    if (!isPdf && !isExcel) {
+      setUploadError({
+        title: 'نوع الملف غير مدعوم',
+        message: `الملف "${selectedFile.name}" ليس ملف Excel أو PDF صالح.`,
+        tip: 'يرجى رفع ملف بصيغة .xlsx أو .xls أو .pdf.',
+      });
       return;
     }
 
     setUploading(true);
+    setUploadPercent(0);
+    setUploadStage('uploading');
+    setUploadStatusText('جارٍ نقل الملف إلى السيرفر...');
+
     try {
-      const res = await api.uploadPlanExcel(user.code, monthLabel.trim(), selectedFile);
-      const centers = Object.entries(res.by_center || {})
-        .map(([c, n]) => `${c}: ${n}`)
-        .join(' • ');
-      alert(`تمت إضافة خطة "${monthLabel}" بنجاح (${res.inserted} منشأة)\n\nالمراكز: ${centers}`);
+      const res = await api.uploadPlanExcel(
+        user.code,
+        monthLabel.trim(),
+        selectedFile,
+        (pct) => {
+          setUploadPercent(pct);
+          if (pct >= 100) {
+            setUploadStage(isPdf ? 'ocr' : 'processing');
+            setUploadStatusText(
+              isPdf
+                ? 'تم الرفع بنجاح! جارٍ فحص صفحات الـ PDF وتشغيل المسح الضوئي (OCR)...'
+                : 'تم الرفع بنجاح! جارٍ قراءة أعمدة ومطابقة بيانات المنشآت...'
+            );
+          }
+        }
+      );
+
+      setUploadStage('done');
+      setUploadPercent(100);
+      setUploadStatusText('تمت إضافة الخطة بنجاح!');
+      setUploadSuccess({
+        inserted: res.inserted,
+        month: monthLabel.trim(),
+        by_center: res.by_center || {},
+        with_prior_major_violations: res.with_prior_major_violations || 0,
+      });
+
       setMonthLabel('');
       setSelectedFile(null);
       onRefresh();
     } catch (err: any) {
-      alert('خطأ في الرفع: ' + (err.message || 'تعذر معالجة الملف'));
+      setUploadStage('error');
+      const msg = err.message || '';
+      let title = 'فشل معالجة الملف';
+      let tip = 'تأكد من وضوح الملف أو ارفع ملف الإكسيل الأصلي.';
+
+      if (err.status === 409 || msg.includes('توجد خطة بنفس الاسم')) {
+        title = 'الخطة مسجلة مسبقاً';
+        tip = `قم بتغيير اسم الشهر (مثال: "${monthLabel.trim()} - محدث") لتجنب التكرار.`;
+      } else if (err.status === 400 || msg.includes('لم يتم العثور')) {
+        title = 'تعذر التعرّف على أعمدة المنشآت';
+        tip = 'تأكد أن الجدول يحتوي على: (التسلسل، مسمى المنشأة الصناعية، العنوان، كود المنشأة، تاريخ الانجاز).';
+      } else if (err.status === 408 || msg.includes('مهلة')) {
+        title = 'انتهت مهلة المسح الضوئي';
+        tip = 'الملف كبير جداً أو يحتوي على عدد كبير من الصور، حاول تقسيم الصفحات أو رفع ملف الإكسيل.';
+      } else if (err.status === 0 || msg.includes('فشل الاتصال')) {
+        title = 'انقطع الاتصال بالسيرفر';
+        tip = 'تأكد أن السيرفر يعمل على منفذ 4000 ومتصل بالشبكة.';
+      }
+
+      setUploadError({
+        title,
+        message: msg || 'حدث خطأ غير متوقع أثناء معالجة الملف.',
+        tip,
+      });
     } finally {
       setUploading(false);
     }
@@ -448,7 +565,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
         </div>
       )}
 
-      {/* Upload Monthly Plan Excel or PDF */}
+      {/* Upload Monthly Plan Excel or PDF with Progress & Error Handling */}
       <div
         style={{
           backgroundColor: COLORS.surface,
@@ -457,58 +574,328 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
           border: `1px solid ${COLORS.border}`,
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: '12px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
         }}
       >
-        <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.ink }}>
-          رفع خطة شهرية جديدة (Excel أو PDF)
-        </h3>
-        <form onSubmit={handleUploadExcel} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.ink }}>
+            رفع خطة شهرية جديدة (Excel أو PDF)
+          </h3>
+          <span style={{ fontSize: '11px', color: COLORS.muted, fontWeight: '600' }}>
+            الحد الأقصى: 35 ميجابايت
+          </span>
+        </div>
+
+        {/* Active Progress & Multi-Stage Indicator */}
+        {uploading && (
+          <div
+            style={{
+              backgroundColor: '#F0F9FF',
+              border: `1.5px solid ${COLORS.primary}`,
+              borderRadius: '14px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                >
+                  <RefreshCwIcon size={18} color={COLORS.primary} />
+                </span>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: COLORS.primary }}>
+                  {uploadStatusText}
+                </span>
+              </div>
+
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  color: COLORS.primary,
+                  backgroundColor: '#E0F2FE',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  direction: 'ltr',
+                }}
+              >
+                {String(Math.floor(uploadSeconds / 60)).padStart(2, '0')}:
+                {String(uploadSeconds % 60).padStart(2, '0')}
+              </span>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div
+              style={{
+                height: '10px',
+                backgroundColor: '#E0F2FE',
+                borderRadius: '5px',
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              <div
+                style={{
+                  height: '100%',
+                  width: uploadStage === 'uploading' ? `${Math.max(5, uploadPercent)}%` : '100%',
+                  backgroundColor: COLORS.primary,
+                  borderRadius: '5px',
+                  transition: 'width 0.4s ease',
+                  opacity: uploadStage !== 'uploading' ? 0.85 : 1,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                color: COLORS.muted,
+                fontWeight: '600',
+              }}
+            >
+              <span>
+                {uploadStage === 'uploading'
+                  ? `مرحلة 1 من 2: نقل الملف للسيرفر (${uploadPercent}%)`
+                  : 'مرحلة 2 من 2: معالجة OCR واستخراج المنشآت...'}
+              </span>
+              <span>
+                {uploadStage === 'uploading' ? 'يرجى الانتظار...' : 'قد يستغرق 10-30 ثانية للصفحات المصورة'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Robust Error Card */}
+        {uploadError && (
+          <div
+            style={{
+              backgroundColor: COLORS.redSoft,
+              border: `1.5px solid ${COLORS.red}`,
+              borderRadius: '14px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangleIcon size={20} color={COLORS.red} />
+              <strong style={{ fontSize: '14px', color: COLORS.red }}>{uploadError.title}</strong>
+            </div>
+
+            <p style={{ fontSize: '13px', color: COLORS.ink, margin: 0, lineHeight: 1.4 }}>
+              {uploadError.message}
+            </p>
+
+            {uploadError.tip && (
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: COLORS.amber,
+                  fontWeight: '700',
+                  border: `1px solid #FDE68A`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>💡</span>
+                <span>{uploadError.tip}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="button"
+                onClick={() => handleUploadPlan()}
+                style={{
+                  padding: '7px 14px',
+                  backgroundColor: COLORS.red,
+                  color: '#FFFFFF',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                }}
+              >
+                إعادة المحاولة
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                style={{
+                  padding: '7px 14px',
+                  backgroundColor: 'transparent',
+                  color: COLORS.muted,
+                  fontSize: '12px',
+                  fontWeight: '700',
+                }}
+              >
+                إغلاق التنبيه
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Success Card */}
+        {uploadSuccess && (
+          <div
+            style={{
+              backgroundColor: COLORS.greenSoft,
+              border: `1.5px solid ${COLORS.green}`,
+              borderRadius: '14px',
+              padding: '14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircleIcon size={20} color={COLORS.green} />
+              <strong style={{ fontSize: '15px', color: COLORS.green }}>
+                تم استيراد خطة "{uploadSuccess.month}" بنجاح!
+              </strong>
+            </div>
+
+            <div style={{ fontSize: '13px', color: COLORS.ink }}>
+              تم استخراج وحفظ <strong>{uploadSuccess.inserted} منشأة</strong> بنجاح وتوزيعها على المراكز:
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {Object.entries(uploadSuccess.by_center).map(([center, count]) => (
+                <span
+                  key={center}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    padding: '3px 9px',
+                    borderRadius: '8px',
+                    border: `1px solid ${COLORS.border}`,
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: COLORS.primary,
+                  }}
+                >
+                  {center}: {count}
+                </span>
+              ))}
+            </div>
+
+            {uploadSuccess.with_prior_major_violations ? (
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: COLORS.amber,
+                  fontWeight: '700',
+                  backgroundColor: '#FFFBEB',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  marginTop: '2px',
+                }}
+              >
+                ⚠️ تنبيه: {uploadSuccess.with_prior_major_violations} منشأة لها مخالفات جسيمة سابقة.
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => setUploadSuccess(null)}
+              style={{
+                alignSelf: 'flex-start',
+                padding: '6px 12px',
+                backgroundColor: COLORS.green,
+                color: '#FFF',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '700',
+                marginTop: '4px',
+              }}
+            >
+              تم ومتابعة الخطة
+            </button>
+          </div>
+        )}
+
+        {/* Upload Form */}
+        <form onSubmit={handleUploadPlan} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink }}>
+            اسم الخطة والشهر:
+          </label>
           <input
             type="text"
-            placeholder="اسم الشهر (مثال: نوفمبر 2026)"
+            placeholder="مثال: نوفمبر 2026 أو خطة طوارئ ديسمبر"
             value={monthLabel}
             onChange={(e) => setMonthLabel(e.target.value)}
+            disabled={uploading}
             style={{
               padding: '10px 12px',
               borderRadius: '10px',
               border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.bg,
+              backgroundColor: uploading ? '#F1F5F9' : COLORS.bg,
+              opacity: uploading ? 0.7 : 1,
             }}
           />
 
+          <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, marginTop: '2px' }}>
+            ملف الخطة (Excel أو PDF مصور / إلكتروني):
+          </label>
           <input
             type="file"
             accept=".xlsx, .xls, .pdf"
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            disabled={uploading}
             style={{
               padding: '8px',
               borderRadius: '10px',
               border: `1px solid ${COLORS.border}`,
-              backgroundColor: COLORS.bg,
+              backgroundColor: uploading ? '#F1F5F9' : COLORS.bg,
               fontSize: '12px',
+              opacity: uploading ? 0.7 : 1,
             }}
           />
+
+          {selectedFile && (
+            <div style={{ fontSize: '11px', color: COLORS.muted }}>
+              الملف المحدد: <strong>{selectedFile.name}</strong> (
+              {(selectedFile.size / (1024 * 1024)).toFixed(2)} ميجابايت)
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={uploading}
             style={{
-              padding: '12px',
-              backgroundColor: COLORS.primary,
+              padding: '13px',
+              backgroundColor: uploading ? COLORS.muted : COLORS.primary,
               color: '#FFFFFF',
               borderRadius: '10px',
               fontSize: '14px',
               fontWeight: '800',
-              opacity: uploading ? 0.6 : 1,
+              cursor: uploading ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
+              marginTop: '4px',
+              boxShadow: uploading ? 'none' : '0 2px 6px rgba(0, 107, 159, 0.25)',
             }}
           >
             <UploadCloudIcon size={18} color="#FFFFFF" />
-            <span>{uploading ? 'جارٍ رفع وتحليل الخطة...' : 'رفع ملف الخطة (Excel أو PDF)'}</span>
+            <span>{uploading ? 'جارٍ الرفع والمعالجة...' : 'بدء رفع ومعالجة الخطة'}</span>
           </button>
         </form>
       </div>

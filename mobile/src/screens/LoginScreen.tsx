@@ -11,9 +11,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, getServerUrl, setServerUrl } from '../services/api';
 import { COLORS } from '../theme/colors';
 import { User } from '../types';
+
+const REMEMBER_CODE_KEY = 'menoufia_remembered_code';
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface Props {
   onLogin: (user: User) => void;
@@ -21,12 +25,30 @@ interface Props {
 
 export default function LoginScreen({ onLogin }: Props) {
   const [code, setCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [serverUrl, setServerUrlState] = useState('');
   const [showServer, setShowServer] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     getServerUrl().then(setServerUrlState);
+    AsyncStorage.getItem(REMEMBER_CODE_KEY)
+      .then((saved) => {
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.expiresAt && Date.now() < parsed.expiresAt && parsed.code) {
+              setCode(parsed.code);
+              setRememberMe(true);
+            } else {
+              AsyncStorage.removeItem(REMEMBER_CODE_KEY);
+            }
+          } catch {
+            AsyncStorage.removeItem(REMEMBER_CODE_KEY);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogin = async () => {
@@ -39,7 +61,26 @@ export default function LoginScreen({ onLogin }: Props) {
       if (serverUrl.trim()) {
         await setServerUrl(serverUrl.trim());
       }
-      const { user } = await api.login(code.trim());
+      const cleanCode = code.trim().toUpperCase();
+      const { user } = await api.login(cleanCode);
+
+      // Save or remove remembered code based on checkbox
+      try {
+        if (rememberMe) {
+          await AsyncStorage.setItem(
+            REMEMBER_CODE_KEY,
+            JSON.stringify({
+              code: cleanCode,
+              expiresAt: Date.now() + ONE_WEEK_MS,
+            })
+          );
+        } else {
+          await AsyncStorage.removeItem(REMEMBER_CODE_KEY);
+        }
+      } catch {
+        // ignore storage errors
+      }
+
       onLogin(user);
     } catch (e: unknown) {
       Alert.alert('تعذر الدخول', e instanceof Error ? e.message : 'تحقق من الكود وعنوان السيرفر المحلي');
@@ -64,6 +105,18 @@ export default function LoginScreen({ onLogin }: Props) {
           autoCapitalize="characters"
           textAlign="center"
         />
+
+        <TouchableOpacity
+          style={styles.rememberRow}
+          onPress={() => setRememberMe((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, rememberMe && styles.checkboxActive]}>
+            {rememberMe && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.rememberText}>تذكرني</Text>
+          <Text style={styles.rememberSubText}>(حفظ الكود لمدة أسبوع)</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>دخول</Text>}
@@ -106,6 +159,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: COLORS.bg,
     marginBottom: 14,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 4,
+    gap: 8,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  rememberText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.ink,
+  },
+  rememberSubText: {
+    fontSize: 12,
+    color: COLORS.muted,
   },
   button: {
     backgroundColor: COLORS.primary,
