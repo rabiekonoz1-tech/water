@@ -1,5 +1,22 @@
-const pdfParseModule = require('pdf-parse');
 const { detectCenter, detectActivityType } = require('./centerParser');
+
+let pdfParseModule = null;
+
+function getPdfParser() {
+  if (!pdfParseModule) {
+    if (typeof global.DOMMatrix === 'undefined') {
+      global.DOMMatrix = class DOMMatrix {};
+    }
+    if (typeof global.DOMPoint === 'undefined') {
+      global.DOMPoint = class DOMPoint {};
+    }
+    if (typeof global.DOMRect === 'undefined') {
+      global.DOMRect = class DOMRect {};
+    }
+    pdfParseModule = require('pdf-parse');
+  }
+  return pdfParseModule;
+}
 
 /**
  * Converts Arabic-Indic digits (٠-٩) to standard digits (0-9)
@@ -24,12 +41,13 @@ function normalizeArabic(str) {
  */
 async function extractTextFromPdf(buffer) {
   try {
-    if (typeof pdfParseModule === 'function') {
-      const res = await pdfParseModule(buffer);
+    const parserMod = getPdfParser();
+    if (typeof parserMod === 'function') {
+      const res = await parserMod(buffer);
       return res.text || '';
     }
-    if (pdfParseModule.PDFParse) {
-      const parser = new pdfParseModule.PDFParse({ data: buffer });
+    if (parserMod.PDFParse) {
+      const parser = new parserMod.PDFParse({ data: buffer });
       const res = await parser.getText();
       await parser.destroy().catch(() => {});
       return res.text || '';
