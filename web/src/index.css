@@ -1,0 +1,120 @@
+/* CSS Reset & Mobile App Feel */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Allow text selection inside inputs and textareas */
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  font-family: inherit;
+  font-size: 16px !important; /* Prevents auto-zoom on iOS */
+  touch-action: manipulation;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  direction: rtl;
+  text-align: right;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Arabic", sans-serif;
+  background-color: #0F293A; /* Desktop background backdrop */
+  color: #0F293A;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  max-width: 500px;
+  height: 100%;
+  height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background-color: #F4F8FB;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Scrollable container with hide scrollbars */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.scroll-horizontal {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: none;
+}
+.scroll-horizontal::-webkit-scrollbar {
+  display: none;
+}
+
+/* Bottom Nav Safe Area for iPhone Home Indicator */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+/* Keyframe animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Utility button press feedback */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  touch-action: manipulation;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+button:active {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: #DCE6EE;
+  border-radius: 4px;
+}

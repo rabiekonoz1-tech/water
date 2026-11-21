@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "معاينات مياه المنوفية",
+    "slug": "menoufia-inspections",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.jpg",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/logo.jpg",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F8FB"
+    },
+    "extra": {
+      "supportsRTL": true
+    },
+    "android": {
+      "package": "eg.menoufiawater.inspections",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "eg.menoufiawater.inspections",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "يحتاج التطبيق للموقع الجغرافي GPS لتوثيق مكان المعاينة."
+      }
+    }
+  }
+}
