@@ -292,11 +292,15 @@ app.post(
           'INSERT INTO plans (id, month_label, filename, uploaded_by, total_facilities, created_at) VALUES (?, ?, ?, ?, ?, ?)',
           [planId, monthLabel, req.file.originalname || 'plan.xlsx', req.user.name, parsed.length, now]
         );
-        for (const item of parsed) {
-          await tRun(
-            `INSERT INTO facilities (id, plan_id, serial_no, name, address, center, facility_code, target_date, plan_notes, activity_type, status, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)`,
-            [
+
+        const CHUNK_SIZE = 40;
+        for (let i = 0; i < parsed.length; i += CHUNK_SIZE) {
+          const chunk = parsed.slice(i, i + CHUNK_SIZE);
+          const valueClauses = [];
+          const params = [];
+          for (const item of chunk) {
+            valueClauses.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'available\', ?)');
+            params.push(
               uuidv4(),
               planId,
               item.serial_no,
@@ -307,8 +311,13 @@ app.post(
               item.target_date,
               item.plan_notes,
               item.activity_type,
-              now,
-            ]
+              now
+            );
+          }
+          await tRun(
+            `INSERT INTO facilities (id, plan_id, serial_no, name, address, center, facility_code, target_date, plan_notes, activity_type, status, updated_at)
+             VALUES ${valueClauses.join(', ')}`,
+            params
           );
         }
       });

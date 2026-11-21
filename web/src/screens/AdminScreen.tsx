@@ -102,27 +102,17 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
     setUploadError(null);
     setUploadSuccess(null);
 
-    // 1. Validation: Month Label
-    if (!monthLabel.trim()) {
-      setUploadError({
-        title: 'اسم الشهر مطلوب',
-        message: 'يرجى كتابة اسم الشهر أولاً قبل رفع الخطة.',
-        tip: 'مثال: "نوفمبر 2026" أو "خطة ديسمبر 2026".',
-      });
-      return;
-    }
-
-    // 2. Validation: File Selection
+    // 1. Validation: File Selection
     if (!selectedFile) {
       setUploadError({
         title: 'لم يتم اختيار ملف',
-        message: 'يرجى اختيار ملف الخطة (Excel أو PDF) من جهازك.',
-        tip: 'الملفات المدعومة هي .xlsx و .xls و .pdf.',
+        message: 'يرجى اختيار ملف الخطة (Excel أو CSV أو PDF) من جهازك.',
+        tip: 'الملفات المدعومة هي .xlsx و .xls و .csv و .pdf.',
       });
       return;
     }
 
-    // 3. Validation: File Size limit (35MB)
+    // 2. Validation: File Size limit (35MB)
     const maxBytes = 35 * 1024 * 1024;
     if (selectedFile.size > maxBytes) {
       setUploadError({
@@ -133,15 +123,16 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
       return;
     }
 
-    // 4. Validation: File Extension
+    // 3. Validation: File Extension
     const lowerName = selectedFile.name.toLowerCase();
     const isPdf = lowerName.endsWith('.pdf');
+    const isCsv = lowerName.endsWith('.csv');
     const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-    if (!isPdf && !isExcel) {
+    if (!isPdf && !isExcel && !isCsv) {
       setUploadError({
         title: 'نوع الملف غير مدعوم',
-        message: `الملف "${selectedFile.name}" ليس ملف Excel أو PDF صالح.`,
-        tip: 'يرجى رفع ملف بصيغة .xlsx أو .xls أو .pdf.',
+        message: `الملف "${selectedFile.name}" ليس ملف Excel أو CSV أو PDF صالح.`,
+        tip: 'يرجى رفع ملف بصيغة .xlsx أو .xls أو .csv أو .pdf.',
       });
       return;
     }
@@ -174,7 +165,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
       setUploadStatusText('تمت إضافة الخطة بنجاح!');
       setUploadSuccess({
         inserted: res.inserted,
-        month: monthLabel.trim(),
+        month: res.plan?.month_label || monthLabel.trim() || 'الخطة الجديدة',
         by_center: res.by_center || {},
         with_prior_major_violations: res.with_prior_major_violations || 0,
       });
@@ -833,11 +824,11 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
         {/* Upload Form */}
         <form onSubmit={handleUploadPlan} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink }}>
-            اسم الخطة والشهر:
+            اسم الخطة والشهر (اختياري - يتم استخراجه تلقائياً من الملف):
           </label>
           <input
             type="text"
-            placeholder="مثال: نوفمبر 2026 أو خطة طوارئ ديسمبر"
+            placeholder="مثال: نوفمبر 2026 (اتركه فارغاً للاستخراج التلقائي)"
             value={monthLabel}
             onChange={(e) => setMonthLabel(e.target.value)}
             disabled={uploading}
@@ -851,11 +842,11 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
           />
 
           <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, marginTop: '2px' }}>
-            ملف الخطة (Excel أو PDF مصور / إلكتروني):
+            ملف الخطة (Excel أو CSV أو PDF مصور / إلكتروني):
           </label>
           <input
             type="file"
-            accept=".xlsx, .xls, .pdf"
+            accept=".xlsx, .xls, .csv, .pdf"
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             disabled={uploading}
             style={{
