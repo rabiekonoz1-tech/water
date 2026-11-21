@@ -134,11 +134,14 @@ function parseSpreadsheet(data, readType = 'buffer') {
       if (val.includes('تسلسل') || val === 'م' || val === 'serial') {
         tempMap.serial = c;
         matchCount++;
+      } else if (val.includes('كود') || val.includes('code')) {
+        tempMap.code = c;
+        matchCount++;
       } else if (
-        val.includes('مسمي المنشاه') ||
-        val.includes('اسم المنشاه') ||
         val.includes('مسمي') ||
+        val.includes('اسم المنشاه') ||
         val.includes('اسم المكان') ||
+        val.includes('اسم') ||
         val.includes('المنشاه')
       ) {
         tempMap.name = c;
@@ -146,10 +149,7 @@ function parseSpreadsheet(data, readType = 'buffer') {
       } else if (val.includes('عنوان') || val.includes('الموقع') || val.includes('address')) {
         tempMap.address = c;
         matchCount++;
-      } else if (val.includes('كود المنشاه') || val.includes('كود') || val.includes('code')) {
-        tempMap.code = c;
-        matchCount++;
-      } else if (val.includes('تاريخ الانجاز') || val.includes('تاريخ') || val.includes('date')) {
+      } else if (val.includes('تاريخ') || val.includes('انجاز') || val.includes('date')) {
         tempMap.date = c;
         matchCount++;
       } else if (val.includes('ملاحظات') || val.includes('notes')) {

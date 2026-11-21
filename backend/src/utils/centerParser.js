@@ -75,9 +75,9 @@ function parseExcelRows(rawRows) {
       return '';
     };
 
-    const name = getVal(['مسمي المنشاه', 'اسم المكان', 'اسم المنشاه', 'المنشاه', 'name']);
+    const facilityCode = getVal(['كود المنشاه', 'الكود', 'كود', 'code']);
+    const name = getVal(['مسمي المنشاه', 'اسم المكان', 'اسم المنشاه', 'مسمي', 'name']);
     const address = getVal(['العنوان', 'address']);
-    const facilityCode = getVal(['كود المنشاه', 'الكود', 'code']);
     const explicitCenter = getVal(['المدينه', 'المركز', 'المنطقه', 'center', 'city']);
     const targetDate = getVal(['تاريخ الانجاز', 'التاريخ', 'date']);
     const planNotes = getVal(['ملاحظات', 'notes']);

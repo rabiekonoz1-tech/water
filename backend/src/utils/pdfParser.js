@@ -41,88 +41,6 @@ async function extractTextFromPdf(buffer) {
 }
 
 /**
- * Extracts page images from PDF for OCR (for scanned CamScanner PDFs)
- */
-async function extractImagesFromPdf(buffer) {
-  if (!pdfParseModule.PDFParse) return [];
-  const images = [];
-
-  try {
-    const parser = new pdfParseModule.PDFParse({ data: buffer });
-
-    // Method 1: Try getScreenshot (renders page view as PNG)
-    try {
-      const screenshots = await parser.getScreenshot({ scale: 1.5, imageDataUrl: true });
-      if (screenshots && screenshots.pages && screenshots.pages.length > 0) {
-        for (const p of screenshots.pages) {
-          if (p.dataUrl) images.push(p.dataUrl);
-        }
-      }
-    } catch (e) {
-      console.warn('Screenshot rendering not available:', e.message);
-    }
-
-    // Method 2: If no screenshots, try embedded images
-    if (images.length === 0) {
-      try {
-        const imgRes = await parser.getImage({ imageDataUrl: true });
-        if (imgRes && imgRes.pages) {
-          for (const p of imgRes.pages) {
-            for (const img of p.images) {
-              if (img.dataUrl && (img.width > 300 || img.height > 300)) {
-                images.push(img.dataUrl);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Embedded image extraction failed:', e.message);
-      }
-    }
-
-    await parser.destroy().catch(() => {});
-  } catch (err) {
-    console.warn('Failed to extract images from PDF:', err.message);
-  }
-
-  return images;
-}
-
-/**
- * Performs OCR on images using a single warm Tesseract worker for high speed & memory efficiency
- */
-async function performOcrOnImages(images) {
-  let combinedText = '';
-  console.log(`🔍 Initializing Tesseract OCR worker for ${images.length} page image(s)...`);
-
-  let worker = null;
-  try {
-    const Tesseract = require('tesseract.js');
-    worker = await Tesseract.createWorker('ara+eng');
-  } catch (err) {
-    console.error('Failed to initialize Tesseract worker:', err.message);
-    throw new Error('تعذر تشغيل محرك المسح الضوئي (OCR): ' + err.message);
-  }
-
-  for (let i = 0; i < images.length; i++) {
-    try {
-      console.log(`📄 OCR processing page image ${i + 1}/${images.length}...`);
-      const res = await worker.recognize(images[i]);
-      combinedText += `\n--- PAGE ${i + 1} ---\n` + (res.data.text || '') + '\n';
-    } catch (err) {
-      console.warn(`OCR warning on page ${i + 1}:`, err.message);
-      // Continue with other pages rather than failing entire document!
-    }
-  }
-
-  if (worker) {
-    await worker.terminate().catch(() => {});
-  }
-
-  return combinedText;
-}
-
-/**
  * Parses raw text (from PDF text or OCR) into structured facility objects
  */
 function parseTextLines(rawText) {
@@ -230,14 +148,13 @@ function parseTextLines(rawText) {
 }
 
 /**
- * Main parser entry point: attempts direct text parse first, then falls back to OCR if needed.
+ * Main parser entry point: attempts direct text parse from PDF.
  */
 async function parsePdfBuffer(buffer) {
-  // Step 1: Try direct PDF text extraction
   console.log('📄 Attempting direct PDF text extraction...');
   const directText = await extractTextFromPdf(buffer);
 
-  if (directText && directText.trim().length > 100) {
+  if (directText && directText.trim().length > 50) {
     const directParsed = parseTextLines(directText);
     if (directParsed.length > 0) {
       console.log(`✅ Direct PDF extraction successful: found ${directParsed.length} facilities.`);
@@ -245,23 +162,7 @@ async function parsePdfBuffer(buffer) {
     }
   }
 
-  // Step 2: Fallback to OCR if direct text returned 0 facilities (e.g. Scanned PDF from CamScanner)
-  console.log('📸 Direct text empty or insufficient. Extracting images for OCR...');
-  const images = await extractImagesFromPdf(buffer);
-
-  if (images.length === 0) {
-    throw new Error('لم يتم العثور على نصوص أو صور قابلة للمسح الضوئي (OCR) في ملف الـ PDF.');
-  }
-
-  const ocrText = await performOcrOnImages(images);
-  const ocrParsed = parseTextLines(ocrText);
-
-  if (ocrParsed.length === 0) {
-    throw new Error('تم تشغيل المسح الضوئي (OCR) ولكن لم يتم التعرّف على منشآت مطابقة للأعمدة. تأكد من وضوح الصفحات أو ارفع ملف الإكسيل الأصلي.');
-  }
-
-  console.log(`✅ OCR extraction successful: found ${ocrParsed.length} facilities.`);
-  return ocrParsed;
+  throw new Error('ملف الـ PDF لا يحتوي على نصوص قابلة للاستخراج (قد يكون صورة ممسوحة ضوئياً). يرجى رفع ملف Excel بدلاً منه.');
 }
 
 module.exports = { parsePdfBuffer, parseTextLines };
