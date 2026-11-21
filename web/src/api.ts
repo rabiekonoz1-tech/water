@@ -1,10 +1,14 @@
 import type { ActivityItem, ConflictItem, Facility, FollowupItem, MonthlyPlan, PlanStats, User } from './types';
 
-const BASE = 'http://localhost:4000';
+const DEFAULT_API_URL = (import.meta.env.VITE_API_URL as string | undefined) || (import.meta.env.PROD ? '' : 'http://localhost:4000');
 const SERVER_URL_KEY = 'menoufia_server_url';
 
 export function getServerUrl(): string {
-  return localStorage.getItem(SERVER_URL_KEY) || BASE;
+  const saved = localStorage.getItem(SERVER_URL_KEY);
+  if (saved !== null && saved !== undefined && saved.trim() !== '') {
+    return saved;
+  }
+  return DEFAULT_API_URL;
 }
 
 export function setServerUrl(url: string): void {
@@ -21,6 +25,7 @@ export class ApiError extends Error {
 
 async function request(path: string, options: RequestInit = {}, userCode?: string) {
   const baseUrl = getServerUrl();
+  const url = baseUrl ? `${baseUrl}${path}` : path;
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -28,7 +33,7 @@ async function request(path: string, options: RequestInit = {}, userCode?: strin
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError(data.error || `HTTP ${res.status}`, res.status);
@@ -52,7 +57,8 @@ export const api = {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const baseUrl = getServerUrl();
-      xhr.open('POST', `${baseUrl}/api/plans/upload`);
+      const uploadUrl = baseUrl ? `${baseUrl}/api/plans/upload` : '/api/plans/upload';
+      xhr.open('POST', uploadUrl);
       xhr.setRequestHeader('x-user-code', code);
 
       if (xhr.upload && onUploadProgress) {
@@ -125,8 +131,11 @@ export const api = {
   resolveConflict: (code: string, id: string, decision: 'discard' | 'replace') =>
     request(`/api/conflicts/${id}/resolve`, { method: 'POST', body: JSON.stringify({ decision }) }, code),
 
-  exportUrl: (code: string, planId: string) =>
-    `${getServerUrl()}/api/plans/${planId}/export.xlsx?code=${encodeURIComponent(code)}`,
+  exportUrl: (code: string, planId: string) => {
+    const base = getServerUrl();
+    const path = `/api/plans/${planId}/export.xlsx?code=${encodeURIComponent(code)}`;
+    return base ? `${base}${path}` : path;
+  },
 
   unlockFacility: (code: string, facilityId: string) =>
     request(`/api/facilities/${facilityId}/unlock`, { method: 'POST' }, code),

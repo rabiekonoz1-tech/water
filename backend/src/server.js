@@ -779,13 +779,48 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطأ داخلي في السيرفر: ' + err.message });
 });
 
-// Boot
-initDb().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Menoufia Inspections Backend running on http://0.0.0.0:${PORT}`);
-    console.log(`📦 Database: PostgreSQL (Neon)`);
-  });
-}).catch((err) => {
-  console.error('❌ Failed to initialize database:', err.message);
-  process.exit(1);
+// Boot & DB initialization helpers (works both standalone and on serverless/Vercel)
+let dbReady = false;
+let dbInitPromise = null;
+
+function ensureDb() {
+  if (!dbInitPromise) {
+    dbInitPromise = initDb()
+      .then(() => {
+        dbReady = true;
+      })
+      .catch((err) => {
+        dbInitPromise = null;
+        throw err;
+      });
+  }
+  return dbInitPromise;
+}
+
+// Middleware to ensure DB tables exist before handling any request
+app.use(async (req, res, next) => {
+  try {
+    if (!dbReady) {
+      await ensureDb();
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
+
+// Boot when running directly (node src/server.js)
+if (require.main === module || !process.env.VERCEL) {
+  ensureDb().then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ Menoufia Inspections Backend running on http://0.0.0.0:${PORT}`);
+      console.log(`📦 Database: PostgreSQL (Neon)`);
+    });
+  }).catch((err) => {
+    console.error('❌ Failed to initialize database:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = app;
+module.exports.ensureDb = ensureDb;
