@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 let pool = null;
 
+
 function getPool() {
   if (!pool) {
     const connStr = process.env.DATABASE_URL;
@@ -168,8 +169,8 @@ async function initDb() {
     const now = new Date().toISOString();
     const seedUsers = [
       { id: uuidv4(), name: 'مدير النظام (الأدمن)', code: 'ADMIN-2026', role: 'admin' },
-      { id: uuidv4(), name: 'أحمد علي',   code: 'W101', role: 'worker' },
-      { id: uuidv4(), name: 'محمد حسن',   code: 'W102', role: 'worker' },
+      { id: uuidv4(), name: 'أحمد علي', code: 'W101', role: 'worker' },
+      { id: uuidv4(), name: 'محمد حسن', code: 'W102', role: 'worker' },
       { id: uuidv4(), name: 'كريم محمود', code: 'W103', role: 'worker' },
     ];
     for (const u of seedUsers) {
