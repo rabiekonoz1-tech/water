@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { initDb, queryAll, queryOne, run, transaction } = require('./db');
 const { parseExcelRows } = require('./utils/centerParser');
 const { parsePdfBuffer } = require('./utils/pdfParser');
+const { parsePlanFile } = require('./utils/universalParser');
 const { normalizePayload, hydrateInspection } = require('./utils/inspectionPayload');
 const C = require('./constants');
 
@@ -255,36 +256,31 @@ app.post(
   },
   async (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ error: 'يرجى اختيار ملف الخطة (.xlsx أو .xls أو .pdf)' });
+      return res.status(400).json({ error: 'يرجى اختيار ملف الخطة (.xlsx أو .xls أو .csv أو .pdf)' });
     }
-    const monthLabel =
-      String(req.body.month_label || '').trim() ||
-      `خطة ${new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}`;
 
     try {
-      if (await queryOne('SELECT id FROM plans WHERE month_label = ?', [monthLabel])) {
-        return res.status(409).json({
-          error: `توجد خطة بنفس الاسم "${monthLabel}" بالفعل. غيّر اسم الشهر (مثال: ${monthLabel} - محدث) لتجنب تكرار الخطة.`,
-        });
-      }
-
-      let parsed = [];
-      const fileName = (req.file.originalname || '').toLowerCase();
-      const isPdf = fileName.endsWith('.pdf') || req.file.mimetype === 'application/pdf';
-
-      if (isPdf) {
-        parsed = await parsePdfBuffer(req.file.buffer);
-      } else {
-        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
-        parsed = parseExcelRows(rawRows);
-      }
+      const { parsed, detectedMonth } = await parsePlanFile(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
 
       if (!parsed || parsed.length === 0) {
         return res.status(400).json({
           error:
             'لم يتم العثور على منشآت مطابقة في الملف. تأكد من احتواء الجدول على الأعمدة الرئيسية: (التسلسل، مسمى المنشأة الصناعية، العنوان، كود المنشأة، تاريخ الإنجاز).',
+        });
+      }
+
+      let monthLabel = String(req.body.month_label || '').trim();
+      if (!monthLabel) {
+        monthLabel = detectedMonth || `خطة ${new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}`;
+      }
+
+      if (await queryOne('SELECT id FROM plans WHERE month_label = ?', [monthLabel])) {
+        return res.status(409).json({
+          error: `توجد خطة بنفس الاسم "${monthLabel}" بالفعل. غيّر اسم الشهر (مثال: ${monthLabel} - محدث) لتجنب تكرار الخطة.`,
         });
       }
 
