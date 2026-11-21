@@ -1,5 +1,4 @@
 const pdfParseModule = require('pdf-parse');
-const Tesseract = require('tesseract.js');
 const { detectCenter, detectActivityType } = require('./centerParser');
 
 /**
@@ -98,6 +97,7 @@ async function performOcrOnImages(images) {
 
   let worker = null;
   try {
+    const Tesseract = require('tesseract.js');
     worker = await Tesseract.createWorker('ara+eng');
   } catch (err) {
     console.error('Failed to initialize Tesseract worker:', err.message);
