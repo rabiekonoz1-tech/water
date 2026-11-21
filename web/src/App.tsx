@@ -11,14 +11,28 @@ import { PlanScreen } from './screens/PlanScreen';
 import { FeedScreen } from './screens/FeedScreen';
 import { FollowupsScreen } from './screens/FollowupsScreen';
 import { AdminScreen } from './screens/AdminScreen';
+import { clearAllCookies, getCookie, removeCookie, setCookie } from './utils/cookies';
 
+const USER_COOKIE_KEY = 'menoufia_user';
 const USER_STORAGE_KEY = 'menoufia_user';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(() => {
     try {
+      // 1. Check Cookie first (Primary session bearer for mobile and browser)
+      const cookieUser = getCookie(USER_COOKIE_KEY);
+      if (cookieUser) {
+        return JSON.parse(cookieUser);
+      }
+
+      // If cookie was cleared from mobile settings, clear localStorage to remain synced
       const saved = localStorage.getItem(USER_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
+      if (saved && !document.cookie.includes(USER_COOKIE_KEY)) {
+        // If there were any cookies previously or it's a first load
+        localStorage.removeItem(USER_STORAGE_KEY);
+        return null;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -70,6 +84,7 @@ export default function App() {
   const handleLogin = (u: User) => {
     setUser(u);
     try {
+      setCookie(USER_COOKIE_KEY, JSON.stringify(u), 30);
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(u));
     } catch {
       // ignore
@@ -79,6 +94,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     try {
+      removeCookie(USER_COOKIE_KEY);
       localStorage.removeItem(USER_STORAGE_KEY);
     } catch {
       // ignore

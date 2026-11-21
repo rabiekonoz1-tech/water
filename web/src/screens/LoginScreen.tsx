@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { COLORS } from '../theme';
 import type { User } from '../types';
 import { api, getServerUrl, setServerUrl } from '../api';
+import { clearAllCookies, getCookie, removeCookie, setCookie } from '../utils/cookies';
+import { Trash2Icon } from '../components/Icons';
 
 const REMEMBER_CODE_KEY = 'menoufia_remembered_code';
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -20,20 +22,43 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
 
   useEffect(() => {
     try {
+      // 1. Check Cookie first (Mobile / Browser Cookies)
+      const cookieCode = getCookie(REMEMBER_CODE_KEY);
+      if (cookieCode) {
+        setCode(cookieCode);
+        setRememberMe(true);
+        return;
+      }
+
+      // 2. Fallback to localStorage if cookie not found
       const saved = localStorage.getItem(REMEMBER_CODE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.expiresAt && Date.now() < parsed.expiresAt && parsed.code) {
           setCode(parsed.code);
           setRememberMe(true);
+          // Sync back to cookie for 7 days
+          setCookie(REMEMBER_CODE_KEY, parsed.code, 7);
         } else {
           localStorage.removeItem(REMEMBER_CODE_KEY);
+          removeCookie(REMEMBER_CODE_KEY);
         }
       }
     } catch {
       localStorage.removeItem(REMEMBER_CODE_KEY);
+      removeCookie(REMEMBER_CODE_KEY);
     }
   }, []);
+
+  const handleClearCookies = () => {
+    if (window.confirm('هل تريد مسح جميع ملفات تعريف الارتباط (الكوكيز) وبيانات الدخول المحفوظة؟')) {
+      clearAllCookies();
+      setCode('');
+      setRememberMe(false);
+      setError('');
+      alert('تم مسح جميع الكوكيز والبيانات المحفوظة بنجاح');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,9 +76,11 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
       const cleanCode = code.trim().toUpperCase();
       const res = await api.login(cleanCode);
 
-      // Save or remove remembered code based on checkbox
+      // Save or remove remembered code in both Cookie & LocalStorage
       try {
         if (rememberMe) {
+          // Set Cookie for 7 days
+          setCookie(REMEMBER_CODE_KEY, cleanCode, 7);
           localStorage.setItem(
             REMEMBER_CODE_KEY,
             JSON.stringify({
@@ -62,6 +89,7 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             })
           );
         } else {
+          removeCookie(REMEMBER_CODE_KEY);
           localStorage.removeItem(REMEMBER_CODE_KEY);
         }
       } catch {
@@ -267,6 +295,28 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
             />
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={handleClearCookies}
+          style={{
+            marginTop: '20px',
+            color: COLORS.muted,
+            fontSize: '12px',
+            fontWeight: '600',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            backgroundColor: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '6px 10px',
+            borderRadius: '6px',
+          }}
+        >
+          <Trash2Icon size={14} color={COLORS.muted} />
+          <span>مسح ملفات تعريف الارتباط (الكوكيز) وسجل البيانات</span>
+        </button>
       </div>
     </div>
   );
