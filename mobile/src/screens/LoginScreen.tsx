@@ -48,7 +48,7 @@ export default function LoginScreen({ onLogin }: Props) {
           }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleLogin = async () => {
@@ -101,7 +101,7 @@ export default function LoginScreen({ onLogin }: Props) {
           style={styles.input}
           value={code}
           onChangeText={setCode}
-          placeholder="مثال: W101 أو ADMIN-2026"
+          placeholder="أدخل كود الموظف أو الأدمن"
           autoCapitalize="characters"
           textAlign="center"
         />
