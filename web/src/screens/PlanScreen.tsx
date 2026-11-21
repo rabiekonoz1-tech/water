@@ -92,13 +92,22 @@ export const PlanScreen: React.FC<Props> = ({
         display: 'flex',
         flexDirection: 'column',
         padding: '12px 14px',
-        gap: '10px',
+        gap: '12px',
         backgroundColor: '#F8FAFC',
       }}
     >
       {/* Plan Header & Switcher */}
       {plans.length > 1 ? (
-        <div className="scroll-horizontal" style={{ gap: '6px', paddingBottom: '2px' }}>
+        <div
+          className="scroll-horizontal"
+          style={{
+            gap: '6px',
+            padding: '4px 0',
+            flexShrink: 0,
+            minHeight: '44px',
+            alignItems: 'center',
+          }}
+        >
           {plans.map((p) => (
             <Chip
               key={p.id}
@@ -115,7 +124,8 @@ export const PlanScreen: React.FC<Props> = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '4px 2px',
+            padding: '2px 4px',
+            flexShrink: 0,
           }}
         >
           <div>
@@ -142,6 +152,7 @@ export const PlanScreen: React.FC<Props> = ({
               alignItems: 'center',
               gap: '5px',
               boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              cursor: 'pointer',
             }}
           >
             <span
@@ -157,17 +168,18 @@ export const PlanScreen: React.FC<Props> = ({
         </div>
       ) : null}
 
-      {/* Sleek, Compact Progress & KPI Summary */}
+      {/* Progress & KPI Summary Card */}
       <div
         style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: '14px',
+          borderRadius: '16px',
           padding: '12px 14px',
           border: `1px solid ${COLORS.border}`,
           boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
+          flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -197,7 +209,7 @@ export const PlanScreen: React.FC<Props> = ({
           </span>
         </div>
 
-        {/* Slim Progress Bar */}
+        {/* Progress Bar */}
         <div
           style={{
             height: '6px',
@@ -218,106 +230,171 @@ export const PlanScreen: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Search Input with Instant Clear */}
-      <div style={{ position: 'relative', width: '100%' }}>
-        <input
-          type="search"
-          placeholder="ابحث باسم المكان، العنوان، أو الكود..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '11px 38px 11px 36px',
-            borderRadius: '12px',
-            border: `1px solid ${COLORS.border}`,
-            backgroundColor: '#FFFFFF',
-            fontSize: '13px',
-            color: COLORS.ink,
-            outline: 'none',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            right: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <SearchIcon size={16} color={COLORS.muted} />
-        </div>
-
-        {search ? (
-          <button
-            type="button"
-            onClick={() => setSearch('')}
+      {/* Search & Filter Section (Clean, Distinct Card) */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '12px',
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          flexShrink: 0,
+        }}
+      >
+        {/* Search Input */}
+        <div style={{ position: 'relative', width: '100%' }}>
+          <input
+            type="search"
+            placeholder="ابحث باسم المكان، العنوان، أو الكود..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 38px 10px 36px',
+              borderRadius: '12px',
+              border: `1px solid ${COLORS.border}`,
+              backgroundColor: '#F8FAFC',
+              fontSize: '13px',
+              color: COLORS.ink,
+              outline: 'none',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)',
+            }}
+          />
+          <div
             style={{
               position: 'absolute',
-              left: '10px',
+              right: '12px',
               top: '50%',
               transform: 'translateY(-50%)',
-              background: '#E2E8F0',
-              border: 'none',
-              borderRadius: '50%',
-              width: '20px',
-              height: '20px',
+              pointerEvents: 'none',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '11px',
-              color: '#475569',
-              cursor: 'pointer',
-              fontWeight: 'bold',
             }}
           >
-            ✕
-          </button>
-        ) : null}
-      </div>
+            <SearchIcon size={16} color={COLORS.muted} />
+          </div>
 
-      {/* Centers Filter (Horizontal Scroll with Counts) */}
-      <div className="scroll-horizontal" style={{ gap: '6px', paddingBottom: '2px' }}>
-        {centersWithCount.map((item) => (
-          <Chip
-            key={item.name}
-            label={item.name}
-            active={centerFilter === item.name}
-            onClick={() => setCenterFilter(item.name)}
-            badge={item.count}
-          />
-        ))}
-      </div>
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: '#CBD5E1',
+                border: 'none',
+                borderRadius: '50%',
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                color: '#334155',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              ✕
+            </button>
+          ) : null}
+        </div>
 
-      {/* Status Segmented Filters */}
-      <div className="scroll-horizontal" style={{ gap: '6px', paddingBottom: '2px' }}>
-        {STATUS_FILTERS.map((sf) => (
-          <button
-            key={sf.key}
-            type="button"
-            onClick={() => setStatusFilter(sf.key)}
+        {/* Centers Horizontal Scroll Row */}
+        <div>
+          <div
             style={{
-              padding: '6px 12px',
-              borderRadius: '20px',
-              fontSize: '12px',
-              fontWeight: statusFilter === sf.key ? '800' : '600',
-              border: statusFilter === sf.key ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.border}`,
-              backgroundColor: statusFilter === sf.key ? COLORS.primary : '#FFFFFF',
-              color: statusFilter === sf.key ? '#FFFFFF' : COLORS.muted,
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
+              fontSize: '11px',
+              fontWeight: '700',
+              color: COLORS.muted,
+              marginBottom: '5px',
             }}
           >
-            {sf.label}
-          </button>
-        ))}
+            المراكز والمدن:
+          </div>
+          <div
+            className="scroll-horizontal"
+            style={{
+              gap: '6px',
+              padding: '2px 0 4px 0',
+              flexShrink: 0,
+              minHeight: '38px',
+              alignItems: 'center',
+            }}
+          >
+            {centersWithCount.map((item) => (
+              <Chip
+                key={item.name}
+                label={item.name}
+                active={centerFilter === item.name}
+                onClick={() => setCenterFilter(item.name)}
+                badge={item.count}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Status Horizontal Scroll Row */}
+        <div>
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: '700',
+              color: COLORS.muted,
+              marginBottom: '5px',
+            }}
+          >
+            حالة المعاينة:
+          </div>
+          <div
+            className="scroll-horizontal"
+            style={{
+              gap: '6px',
+              padding: '2px 0 4px 0',
+              flexShrink: 0,
+              minHeight: '38px',
+              alignItems: 'center',
+            }}
+          >
+            {STATUS_FILTERS.map((sf) => {
+              const isActive = statusFilter === sf.key;
+              return (
+                <button
+                  key={sf.key}
+                  type="button"
+                  onClick={() => setStatusFilter(sf.key)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '32px',
+                    padding: '0 12px',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: isActive ? '800' : '600',
+                    border: isActive ? `1.5px solid ${COLORS.primary}` : `1px solid ${COLORS.border}`,
+                    backgroundColor: isActive ? COLORS.primary : '#F8FAFC',
+                    color: isActive ? '#FFFFFF' : '#475569',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {sf.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Results Count Summary */}
+      {/* Results Count Summary & Reset Button */}
       <div
         style={{
           display: 'flex',
@@ -327,6 +404,7 @@ export const PlanScreen: React.FC<Props> = ({
           color: COLORS.muted,
           fontWeight: '600',
           padding: '2px 4px',
+          flexShrink: 0,
         }}
       >
         <span>
@@ -369,7 +447,7 @@ export const PlanScreen: React.FC<Props> = ({
               color: COLORS.muted,
               fontSize: '14px',
               fontWeight: '600',
-              marginTop: '10px',
+              marginTop: '6px',
             }}
           >
             <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
@@ -383,7 +461,7 @@ export const PlanScreen: React.FC<Props> = ({
               }}
               style={{
                 marginTop: '10px',
-                padding: '6px 14px',
+                padding: '7px 16px',
                 backgroundColor: COLORS.primary,
                 color: '#FFF',
                 borderRadius: '8px',
