@@ -154,6 +154,25 @@ export default function App() {
     }
   };
 
+  const handleOpenFacilityById = async (facilityId: string) => {
+    if (!user) return;
+    const existing = facilities.find((f) => f.id === facilityId);
+    if (existing && existing.inspection) {
+      setActiveFacility(existing);
+      return;
+    }
+    try {
+      const { facility } = await api.getFacility(user.code, facilityId);
+      setActiveFacility(facility);
+    } catch (err: any) {
+      if (existing) {
+        setActiveFacility(existing);
+      } else {
+        alert('تعذر تحميل تفاصيل المنشأة: ' + (err.message || 'غير موجودة'));
+      }
+    }
+  };
+
   if (!user) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -215,6 +234,7 @@ export default function App() {
           feed={feed}
           onRefresh={() => refreshAll(user, selectedPlanId)}
           refreshing={refreshing}
+          onSelectFacilityId={handleOpenFacilityById}
         />
       )}
 

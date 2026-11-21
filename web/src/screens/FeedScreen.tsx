@@ -15,6 +15,7 @@ interface Props {
   feed: ActivityItem[];
   onRefresh: () => void;
   refreshing: boolean;
+  onSelectFacilityId?: (facilityId: string) => void;
 }
 
 function renderActionBadge(action: string) {
@@ -125,7 +126,7 @@ function renderActionBadge(action: string) {
   }
 }
 
-export const FeedScreen: React.FC<Props> = ({ feed, onRefresh, refreshing }) => {
+export const FeedScreen: React.FC<Props> = ({ feed, onRefresh, refreshing, onSelectFacilityId }) => {
   return (
     <div
       className="scroll-container"
@@ -180,65 +181,103 @@ export const FeedScreen: React.FC<Props> = ({ feed, onRefresh, refreshing }) => 
           لا يوجد نشاط مسجل في الخطة المحددة بعد.
         </div>
       ) : (
-        feed.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              backgroundColor: COLORS.surface,
-              borderRadius: '14px',
-              padding: '12px 14px',
-              border: `1px solid ${COLORS.border}`,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-            }}
-          >
+        feed.map((item) => {
+          const hasFacility = Boolean(item.facility_id);
+          return (
             <div
+              key={item.id}
+              onClick={() => {
+                if (hasFacility && onSelectFacilityId) {
+                  onSelectFacilityId(item.facility_id!);
+                }
+              }}
               style={{
+                backgroundColor: COLORS.surface,
+                borderRadius: '14px',
+                padding: '12px 14px',
+                border: `1px solid ${COLORS.border}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                flexDirection: 'column',
+                gap: '6px',
+                cursor: hasFacility ? 'pointer' : 'default',
+                transition: 'background-color 0.15s ease, border-color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (hasFacility) {
+                  e.currentTarget.style.backgroundColor = '#F0F9FF';
+                  e.currentTarget.style.borderColor = COLORS.primary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (hasFacility) {
+                  e.currentTarget.style.backgroundColor = COLORS.surface;
+                  e.currentTarget.style.borderColor = COLORS.border;
+                }
               }}
             >
-              <span
+              <div
                 style={{
-                  fontSize: '11px',
-                  color: COLORS.muted,
-                  direction: 'ltr',
-                  fontWeight: '500',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
-                {new Date(item.created_at).toLocaleTimeString('ar-EG', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}{' '}
-                —{' '}
-                {new Date(item.created_at).toLocaleDateString('ar-EG', {
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </span>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.ink }}>
-                  {item.worker_name}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    color: COLORS.muted,
+                    direction: 'ltr',
+                    fontWeight: '500',
+                  }}
+                >
+                  {new Date(item.created_at).toLocaleTimeString('ar-EG', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}{' '}
+                  —{' '}
+                  {new Date(item.created_at).toLocaleDateString('ar-EG', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </span>
-                {renderActionBadge(item.action)}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '800', color: COLORS.ink }}>
+                    {item.worker_name}
+                  </span>
+                  {renderActionBadge(item.action)}
+                </div>
+              </div>
+
+              <p style={{ fontSize: '14px', color: COLORS.ink, fontWeight: '500', margin: '2px 0', lineHeight: 1.4 }}>
+                {item.summary}
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                {item.center && (
+                  <span style={{ fontSize: '11px', color: COLORS.muted }}>
+                    المركز: {item.center}
+                  </span>
+                )}
+                {hasFacility && (
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: item.action === 'completed' ? COLORS.green : COLORS.primary,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {item.action === 'completed' ? '📋 عرض تفاصيل المعاينة والعينات' : '📍 عرض المنشأة'} ←
+                  </span>
+                )}
               </div>
             </div>
-
-            <p style={{ fontSize: '14px', color: COLORS.ink, fontWeight: '500', margin: '2px 0', lineHeight: 1.4 }}>
-              {item.summary}
-            </p>
-
-            {item.center && (
-              <span style={{ fontSize: '11px', color: COLORS.muted }}>
-                المركز: {item.center}
-              </span>
-            )}
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

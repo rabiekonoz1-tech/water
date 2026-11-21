@@ -550,8 +550,8 @@ export const FacilityDetail: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Completed Inspection Details */}
-      {isCompleted && facility.inspection && (
+      {/* Completed Inspection Details (Visible to all users) */}
+      {facility.inspection && (
         <div
           style={{
             backgroundColor: COLORS.bg,
@@ -574,14 +574,22 @@ export const FacilityDetail: React.FC<Props> = ({
               border: `1px solid ${COLORS.border}`,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
               gap: '6px',
             }}
           >
-            <CheckCircleIcon size={16} color={COLORS.green} />
-            <span>
-              {OUTCOME_LABELS[facility.inspection.visit_outcome || 'inspected']} — بواسطة{' '}
-              {facility.inspection.worker_name}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircleIcon size={16} color={COLORS.green} />
+              <span>
+                {OUTCOME_LABELS[facility.inspection.visit_outcome || 'inspected']} — بواسطة{' '}
+                <strong>{facility.inspection.worker_name}</strong>
+              </span>
+            </div>
+            {facility.inspection.created_at && (
+              <span style={{ fontSize: '11px', color: COLORS.muted }}>
+                {new Date(facility.inspection.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
 
           {(facility.inspection.visit_outcome || 'inspected') === 'inspected' && (
@@ -690,6 +698,31 @@ export const FacilityDetail: React.FC<Props> = ({
               <MapPinIcon size={14} color={COLORS.primary} />
               <span>GPS: {facility.inspection.gps_lat}, {facility.inspection.gps_lng} (عرض على الخريطة)</span>
             </button>
+          )}
+
+          {facility.inspection.signature_base64 && (
+            <div style={{ marginTop: '4px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '800', color: COLORS.primary, marginBottom: '4px' }}>
+                توقيع ممثل المنشأة:
+              </div>
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  padding: '6px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <img
+                  src={facility.inspection.signature_base64}
+                  alt="توقيع ممثل المنشأة"
+                  style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}

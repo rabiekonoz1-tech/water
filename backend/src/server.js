@@ -464,6 +464,51 @@ app.get('/api/plans/:planId/facilities', authMiddleware, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// Single facility with full inspection & history details (accessible by all users)
+app.get('/api/facilities/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const facility = await queryOne('SELECT * FROM facilities WHERE id = ?', [req.params.id]);
+    if (!facility) return res.status(404).json({ error: 'المنشأة غير موجودة' });
+
+    let insp = await queryOne(
+      "SELECT * FROM inspections WHERE facility_id = ? AND record_status = 'valid' ORDER BY created_at DESC LIMIT 1",
+      [facility.id]
+    );
+    if (!insp) {
+      insp = await queryOne(
+        'SELECT * FROM inspections WHERE facility_id = ? ORDER BY created_at DESC LIMIT 1',
+        [facility.id]
+      );
+    }
+
+    const priorRows = await queryAll(
+      `SELECT f.facility_code AS code, i.violation_level AS level, i.created_at AS at
+       FROM inspections i JOIN facilities f ON f.id = i.facility_id
+       WHERE i.record_status = 'valid' AND f.facility_code = ? AND i.facility_id <> ? ORDER BY i.created_at DESC`,
+      [facility.facility_code, facility.id]
+    );
+    const history = priorRows.length > 0 ? {
+      visits: priorRows.length,
+      worst: priorRows.reduce((w, r) => C.VIOLATION_LEVELS.indexOf(r.level) > C.VIOLATION_LEVELS.indexOf(w) ? r.level : w, 'none'),
+      last_at: priorRows[0].at,
+    } : null;
+
+    const followup = await queryOne(
+      "SELECT id FROM inspections WHERE facility_id = ? AND followup_required = 1 AND record_status = 'valid' LIMIT 1",
+      [facility.id]
+    );
+
+    res.json({
+      facility: {
+        ...facility,
+        inspection: insp ? hydrateInspection(insp) : null,
+        history,
+        has_followup: Boolean(followup),
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 // Reserve facility
 app.post('/api/facilities/:id/reserve', authMiddleware, async (req, res, next) => {
   try {

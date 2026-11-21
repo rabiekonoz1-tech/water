@@ -104,6 +104,9 @@ export const api = {
   getFacilities: (code: string, planId: string): Promise<{ facilities: Facility[] }> =>
     request(`/api/plans/${planId}/facilities`, { method: 'GET' }, code),
 
+  getFacility: (code: string, facilityId: string): Promise<{ facility: Facility }> =>
+    request(`/api/facilities/${facilityId}`, { method: 'GET' }, code),
+
   getFeed: (code: string, planId: string): Promise<{ feed: ActivityItem[] }> =>
     request(`/api/plans/${planId}/feed`, { method: 'GET' }, code),
 
