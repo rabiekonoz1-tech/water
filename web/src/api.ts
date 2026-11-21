@@ -140,6 +140,29 @@ export const api = {
   unlockFacility: (code: string, facilityId: string) =>
     request(`/api/facilities/${facilityId}/unlock`, { method: 'POST' }, code),
 
+  resetFacility: (code: string, facilityId: string, mode: 'keep_history' | 'wipe' = 'keep_history') =>
+    request(`/api/facilities/${facilityId}/reset`, { method: 'POST', body: JSON.stringify({ mode }) }, code),
+
+  bulkResetPlan: (
+    code: string,
+    planId: string,
+    target: 'completed' | 'reserved' | 'all' = 'completed',
+    mode: 'keep_history' | 'wipe' = 'keep_history'
+  ) =>
+    request(`/api/plans/${planId}/bulk-reset`, { method: 'POST', body: JSON.stringify({ target, mode }) }, code),
+
+  createFacility: (code: string, planId: string, data: Partial<Facility>) =>
+    request(`/api/plans/${planId}/facilities`, { method: 'POST', body: JSON.stringify(data) }, code),
+
+  updateFacility: (code: string, facilityId: string, data: Partial<Facility>) =>
+    request(`/api/facilities/${facilityId}`, { method: 'PUT', body: JSON.stringify(data) }, code),
+
+  deleteFacility: (code: string, facilityId: string) =>
+    request(`/api/facilities/${facilityId}`, { method: 'DELETE' }, code),
+
+  dismissFollowup: (code: string, inspectionId: string) =>
+    request(`/api/followups/${inspectionId}/dismiss`, { method: 'POST' }, code),
+
   getWorkers: (code: string): Promise<{ workers: User[] }> =>
     request('/api/workers', { method: 'GET' }, code),
 

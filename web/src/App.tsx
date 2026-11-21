@@ -253,6 +253,16 @@ export default function App() {
             }}
             onUnlock={handleUnlock}
             onClose={() => setActiveFacility(null)}
+            onFacilityUpdated={(updated) => {
+              setFacilities((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+              setActiveFacility(updated);
+              refreshAll(user, selectedPlanId);
+            }}
+            onFacilityDeleted={(deletedId) => {
+              setFacilities((prev) => prev.filter((f) => f.id !== deletedId));
+              setActiveFacility(null);
+              refreshAll(user, selectedPlanId);
+            }}
           />
         )}
       </BottomSheet>

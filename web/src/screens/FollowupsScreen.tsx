@@ -47,6 +47,19 @@ export const FollowupsScreen: React.FC<Props> = ({ user, onFollowupCountChange }
     }
   };
 
+  const dismissFollowup = async (item: FollowupItem) => {
+    if (!window.confirm(`هل تريد إزالة المنشأة "${item.facility_name}" من قائمة المتابعات؟`)) {
+      return;
+    }
+    try {
+      await api.dismissFollowup(user.code, item.id);
+      load();
+      alert('تمت إزالة المتابعة بنجاح');
+    } catch (err: any) {
+      alert('تعذر الإلغاء: ' + err.message);
+    }
+  };
+
   const openMaps = (item: FollowupItem) => {
     const q = encodeURIComponent(`${item.facility_name} ${item.address} ${item.center}`);
     window.open(`https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
@@ -225,6 +238,24 @@ export const FollowupsScreen: React.FC<Props> = ({ user, onFollowupCountChange }
                 <CheckCircleIcon size={16} color="#FFFFFF" />
                 <span>تمت المتابعة</span>
               </button>
+
+              {user.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => dismissFollowup(item)}
+                  style={{
+                    padding: '9px 12px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    color: COLORS.red,
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                  }}
+                >
+                  إلغاء المتابعة
+                </button>
+              )}
 
               <button
                 type="button"

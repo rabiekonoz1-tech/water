@@ -532,7 +532,7 @@ app.post('/api/facilities/:id/complete', authMiddleware, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
-// Admin: unlock a facility
+// Admin: unlock a facility (backward compatibility)
 app.post('/api/facilities/:id/unlock', authMiddleware, adminOnly, async (req, res, next) => {
   try {
     const facility = await queryOne('SELECT * FROM facilities WHERE id = ?', [req.params.id]);
@@ -555,6 +555,292 @@ app.post('/api/facilities/:id/unlock', authMiddleware, adminOnly, async (req, re
     });
     res.json({ facility: await queryOne('SELECT * FROM facilities WHERE id = ?', [facility.id]) });
   } catch (err) { next(err); }
+});
+
+// Admin: Reset / Re-open a facility (with options: keep_history or wipe)
+app.post('/api/facilities/:id/reset', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const { mode = 'keep_history' } = req.body; // 'keep_history' | 'wipe'
+    const facility = await queryOne('SELECT * FROM facilities WHERE id = ?', [req.params.id]);
+    if (!facility) return res.status(404).json({ error: 'المنشأة غير موجودة' });
+
+    const now = new Date().toISOString();
+    await transaction(async ({ run: tRun }) => {
+      if (mode === 'wipe') {
+        await tRun('DELETE FROM inspections WHERE facility_id = ?', [facility.id]);
+      } else {
+        await tRun("UPDATE inspections SET record_status = 'superseded' WHERE facility_id = ? AND record_status = 'valid'", [facility.id]);
+      }
+
+      await tRun(
+        `UPDATE facilities
+         SET status = 'available',
+             reserved_by_id = NULL, reserved_by_name = NULL, reserved_at = NULL,
+             completed_by_id = NULL, completed_by_name = NULL, completed_at = NULL,
+             visit_outcome = '', updated_at = ?
+         WHERE id = ?`,
+        [now, facility.id]
+      );
+    });
+
+    const isWiped = mode === 'wipe';
+    await logActivity({
+      plan_id: facility.plan_id,
+      facility_id: facility.id,
+      facility_name: facility.name,
+      center: facility.center,
+      worker_id: req.user.id,
+      worker_name: req.user.name,
+      action: isWiped ? 'reset_wipe' : 'reset_reopen',
+      summary: isWiped
+        ? `قام الأدمن بحذف المعاينة السابقة وتصفير ${facility.name} تماماً`
+        : `أعاد الأدمن فتح ${facility.name} للمعاينة (مع الاحتفاظ بالسجل في الأرشيف)`,
+    });
+
+    res.json({
+      success: true,
+      mode,
+      facility: await queryOne('SELECT * FROM facilities WHERE id = ?', [facility.id]),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Bulk reset facilities in a plan
+app.post('/api/plans/:planId/bulk-reset', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const { planId } = req.params;
+    const { target = 'completed', mode = 'keep_history' } = req.body; // target: 'completed' | 'reserved' | 'all'
+
+    let whereClause = 'plan_id = ?';
+    if (target === 'completed') {
+      whereClause += " AND status = 'completed'";
+    } else if (target === 'reserved') {
+      whereClause += " AND status = 'reserved'";
+    } else if (target === 'all') {
+      whereClause += " AND status IN ('completed', 'reserved')";
+    }
+
+    const targetFacilities = await queryAll(`SELECT id, name FROM facilities WHERE ${whereClause}`, [planId]);
+    if (targetFacilities.length === 0) {
+      return res.json({ success: true, count: 0, message: 'لا توجد منشآت مطابقة للشرط المطلوب' });
+    }
+
+    const facilityIds = targetFacilities.map((f) => f.id);
+    const now = new Date().toISOString();
+
+    await transaction(async ({ run: tRun }) => {
+      if (mode === 'wipe') {
+        for (const fid of facilityIds) {
+          await tRun('DELETE FROM inspections WHERE facility_id = ?', [fid]);
+        }
+      } else {
+        for (const fid of facilityIds) {
+          await tRun("UPDATE inspections SET record_status = 'superseded' WHERE facility_id = ? AND record_status = 'valid'", [fid]);
+        }
+      }
+
+      for (const fid of facilityIds) {
+        await tRun(
+          `UPDATE facilities
+           SET status = 'available',
+               reserved_by_id = NULL, reserved_by_name = NULL, reserved_at = NULL,
+               completed_by_id = NULL, completed_by_name = NULL, completed_at = NULL,
+               visit_outcome = '', updated_at = ?
+           WHERE id = ?`,
+          [now, fid]
+        );
+      }
+    });
+
+    await logActivity({
+      plan_id: planId,
+      worker_id: req.user.id,
+      worker_name: req.user.name,
+      action: 'bulk_reset',
+      summary: `قام الأدمن بإعادة فتح (${facilityIds.length}) منشأة للمعاينة في الخطة`,
+    });
+
+    res.json({
+      success: true,
+      count: facilityIds.length,
+      message: `تمت إعادة فتح ${facilityIds.length} منشأة بنجاح`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Create a new facility manually (CRUD)
+app.post('/api/plans/:planId/facilities', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const { planId } = req.params;
+    const {
+      name,
+      address = '',
+      center = '',
+      facility_code = '',
+      target_date = '',
+      activity_type = 'أخرى',
+      plan_notes = '',
+    } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'اسم المنشأة مطلوب' });
+    }
+
+    const plan = await queryOne('SELECT * FROM plans WHERE id = ?', [planId]);
+    if (!plan) return res.status(404).json({ error: 'الخطة غير موجودة' });
+
+    // Calculate next serial number in this plan
+    const maxSerialRow = await queryOne('SELECT MAX(serial_no) as max_s FROM facilities WHERE plan_id = ?', [planId]);
+    const nextSerial = (maxSerialRow?.max_s || 0) + 1;
+
+    const { detectCenter } = require('./utils/centerParser');
+    const computedCenter = center && center.trim() ? center.trim() : detectCenter(facility_code, address, '');
+    const code = facility_code && facility_code.trim() ? facility_code.trim().toUpperCase() : `F-${nextSerial}`;
+
+    const facilityId = uuidv4();
+    const now = new Date().toISOString();
+
+    await transaction(async ({ run: tRun }) => {
+      await tRun(
+        `INSERT INTO facilities
+         (id, plan_id, serial_no, name, address, center, facility_code, target_date, plan_notes, activity_type, status, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?)`,
+        [
+          facilityId,
+          planId,
+          nextSerial,
+          name.trim(),
+          address.trim() || 'المنوفية',
+          computedCenter,
+          code,
+          target_date.trim(),
+          plan_notes.trim(),
+          activity_type.trim() || 'أخرى',
+          now,
+        ]
+      );
+
+      await tRun('UPDATE plans SET total_facilities = total_facilities + 1 WHERE id = ?', [planId]);
+    });
+
+    await logActivity({
+      plan_id: planId,
+      facility_id: facilityId,
+      facility_name: name.trim(),
+      center: computedCenter,
+      worker_id: req.user.id,
+      worker_name: req.user.name,
+      action: 'facility_created',
+      summary: `أضاف الأدمن منشأة جديدة: ${name.trim()} (${code})`,
+    });
+
+    res.status(201).json({
+      success: true,
+      facility: await queryOne('SELECT * FROM facilities WHERE id = ?', [facilityId]),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Update facility details (CRUD)
+app.put('/api/facilities/:id', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const facility = await queryOne('SELECT * FROM facilities WHERE id = ?', [req.params.id]);
+    if (!facility) return res.status(404).json({ error: 'المنشأة غير موجودة' });
+
+    const {
+      name = facility.name,
+      address = facility.address,
+      center = facility.center,
+      facility_code = facility.facility_code,
+      target_date = facility.target_date,
+      activity_type = facility.activity_type,
+      plan_notes = facility.plan_notes,
+    } = req.body;
+
+    const now = new Date().toISOString();
+    await run(
+      `UPDATE facilities
+       SET name = ?, address = ?, center = ?, facility_code = ?, target_date = ?,
+           activity_type = ?, plan_notes = ?, updated_at = ?
+       WHERE id = ?`,
+      [
+        name.trim(),
+        address.trim(),
+        center.trim(),
+        facility_code.trim().toUpperCase(),
+        target_date.trim(),
+        activity_type.trim(),
+        plan_notes.trim(),
+        now,
+        facility.id,
+      ]
+    );
+
+    await logActivity({
+      plan_id: facility.plan_id,
+      facility_id: facility.id,
+      facility_name: name.trim(),
+      center: center.trim(),
+      worker_id: req.user.id,
+      worker_name: req.user.name,
+      action: 'facility_updated',
+      summary: `عدل الأدمن بيانات المنشأة: ${name.trim()} (${facility_code.trim()})`,
+    });
+
+    res.json({
+      success: true,
+      facility: await queryOne('SELECT * FROM facilities WHERE id = ?', [facility.id]),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Delete a facility completely (CRUD)
+app.delete('/api/facilities/:id', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const facility = await queryOne('SELECT * FROM facilities WHERE id = ?', [req.params.id]);
+    if (!facility) return res.status(404).json({ error: 'المنشأة غير موجودة' });
+
+    await transaction(async ({ run: tRun }) => {
+      await tRun('DELETE FROM inspections WHERE facility_id = ?', [facility.id]);
+      await tRun('DELETE FROM facilities WHERE id = ?', [facility.id]);
+      await tRun('UPDATE plans SET total_facilities = GREATEST(0, total_facilities - 1) WHERE id = ?', [facility.plan_id]);
+    });
+
+    await logActivity({
+      plan_id: facility.plan_id,
+      facility_name: facility.name,
+      center: facility.center,
+      worker_id: req.user.id,
+      worker_name: req.user.name,
+      action: 'facility_deleted',
+      summary: `حذف الأدمن المنشأة: ${facility.name} (${facility.facility_code})`,
+    });
+
+    res.json({ success: true, id: facility.id });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin: Dismiss / complete a followup
+app.post('/api/followups/:id/dismiss', authMiddleware, adminOnly, async (req, res, next) => {
+  try {
+    const inspection = await queryOne('SELECT * FROM inspections WHERE id = ?', [req.params.id]);
+    if (!inspection) return res.status(404).json({ error: 'سجل المعاينة غير موجود' });
+
+    await run('UPDATE inspections SET followup_required = 0 WHERE id = ?', [inspection.id]);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Activity feed
