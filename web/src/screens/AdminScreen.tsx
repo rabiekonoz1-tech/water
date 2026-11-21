@@ -448,7 +448,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
         </div>
       )}
 
-      {/* Upload Monthly Plan Excel */}
+      {/* Upload Monthly Plan Excel or PDF */}
       <div
         style={{
           backgroundColor: COLORS.surface,
@@ -461,12 +461,12 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
         }}
       >
         <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.ink }}>
-          رفع خطة شهرية جديدة (Excel)
+          رفع خطة شهرية جديدة (Excel أو PDF)
         </h3>
         <form onSubmit={handleUploadExcel} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <input
             type="text"
-            placeholder="اسم الشهر (مثال: ديسمبر 2026)"
+            placeholder="اسم الشهر (مثال: نوفمبر 2026)"
             value={monthLabel}
             onChange={(e) => setMonthLabel(e.target.value)}
             style={{
@@ -479,7 +479,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
 
           <input
             type="file"
-            accept=".xlsx, .xls"
+            accept=".xlsx, .xls, .pdf"
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             style={{
               padding: '8px',
@@ -508,7 +508,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
             }}
           >
             <UploadCloudIcon size={18} color="#FFFFFF" />
-            <span>{uploading ? 'جارٍ رفع وتحليل الخطة...' : 'رفع ملف Excel الخطة'}</span>
+            <span>{uploading ? 'جارٍ رفع وتحليل الخطة...' : 'رفع ملف الخطة (Excel أو PDF)'}</span>
           </button>
         </form>
       </div>

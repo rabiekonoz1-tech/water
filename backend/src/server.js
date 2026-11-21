@@ -6,6 +6,7 @@ const xlsx = require('xlsx');
 const { v4: uuidv4 } = require('uuid');
 const { initDb, queryAll, queryOne, run, transaction } = require('./db');
 const { parseExcelRows } = require('./utils/centerParser');
+const { parsePdfBuffer } = require('./utils/pdfParser');
 const { normalizePayload, hydrateInspection } = require('./utils/inspectionPayload');
 const C = require('./constants');
 
@@ -229,21 +230,30 @@ app.get('/api/plans', authMiddleware, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Upload plan (Excel)
+// Upload plan (Excel or PDF)
 app.post('/api/plans/upload', authMiddleware, adminOnly, upload.single('file'), async (req, res, next) => {
-  if (!req.file) return res.status(400).json({ error: 'يرجى اختيار ملف Excel (.xlsx أو .xls)' });
+  if (!req.file) return res.status(400).json({ error: 'يرجى اختيار ملف الخطة (.xlsx أو .xls أو .pdf)' });
   const monthLabel = String(req.body.month_label || '').trim() ||
     `خطة ${new Date().toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}`;
   try {
     if (await queryOne('SELECT id FROM plans WHERE month_label = ?', [monthLabel]))
       return res.status(409).json({ error: `توجد خطة بنفس الاسم "${monthLabel}" بالفعل. غيّر اسم الشهر لتجنب تكرار الخطة.` });
 
-    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
-    const parsed = parseExcelRows(rawRows);
+    let parsed = [];
+    const fileName = (req.file.originalname || '').toLowerCase();
+    const isPdf = fileName.endsWith('.pdf') || req.file.mimetype === 'application/pdf';
+
+    if (isPdf) {
+      parsed = await parsePdfBuffer(req.file.buffer);
+    } else {
+      const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = xlsx.utils.sheet_to_json(sheet, { defval: '' });
+      parsed = parseExcelRows(rawRows);
+    }
+
     if (parsed.length === 0)
-      return res.status(400).json({ error: 'لم يتم العثور على منشآت في ملف Excel. تأكد من أسماء الأعمدة.' });
+      return res.status(400).json({ error: 'لم يتم العثور على منشآت في الملف. تأكد من تطابق أعمدة الجدول (التسلسل، مسمى المنشأة، العنوان، كود المنشأة، تاريخ الإنجاز).' });
 
     const planId = uuidv4();
     const now = new Date().toISOString();
