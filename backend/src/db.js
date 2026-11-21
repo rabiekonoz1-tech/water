@@ -2,16 +2,27 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-});
+let pool = null;
+
+function getPool() {
+  if (!pool) {
+    const connStr = process.env.DATABASE_URL;
+    if (!connStr) {
+      throw new Error('DATABASE_URL is not defined in environment variables! Please add DATABASE_URL in Vercel settings.');
+    }
+    pool = new Pool({
+      connectionString: connStr,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+    });
+  }
+  return pool;
+}
 
 // Execute a query and return all rows
 async function queryAll(sql, params = []) {
   const pgSql = toPgPlaceholders(sql);
-  const { rows } = await pool.query(pgSql, params);
+  const { rows } = await getPool().query(pgSql, params);
   return rows;
 }
 
@@ -24,12 +35,12 @@ async function queryOne(sql, params = []) {
 // Execute a statement (INSERT / UPDATE / DELETE)
 async function run(sql, params = []) {
   const pgSql = toPgPlaceholders(sql);
-  await pool.query(pgSql, params);
+  await getPool().query(pgSql, params);
 }
 
 // Run multiple statements inside a single transaction
 async function transaction(fn) {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     // Provide scoped helpers that use the same client
@@ -54,6 +65,22 @@ async function transaction(fn) {
     client.release();
   }
 }
+      const rows = await clientQueryAll(sql, params);
+      return rows.length > 0 ? rows[0] : null;
+    };
+    const clientRun = async (sql, params = []) => {
+      await client.query(toPgPlaceholders(sql), params);
+    };
+    const result = await fn({ queryAll: clientQueryAll, queryOne: clientQueryOne, run: clientRun });
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 
 // Convert SQLite-style ? placeholders to PostgreSQL $1, $2, … placeholders
 function toPgPlaceholders(sql) {
@@ -62,8 +89,9 @@ function toPgPlaceholders(sql) {
 }
 
 async function initDb() {
+  const p = getPool();
   // Create all tables
-  await pool.query(`
+  await p.query(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -146,12 +174,12 @@ async function initDb() {
   `);
 
   // Indexes
-  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insp_client ON inspections(client_id) WHERE client_id <> ''`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_fac_plan ON facilities(plan_id, status)`);
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_insp_plan ON inspections(plan_id, facility_id)`);
+  await p.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_insp_client ON inspections(client_id) WHERE client_id <> ''`);
+  await p.query(`CREATE INDEX IF NOT EXISTS idx_fac_plan ON facilities(plan_id, status)`);
+  await p.query(`CREATE INDEX IF NOT EXISTS idx_insp_plan ON inspections(plan_id, facility_id)`);
 
   // Seed default users if table is empty
-  const { rows } = await pool.query('SELECT COUNT(*) AS cnt FROM users');
+  const { rows } = await p.query('SELECT COUNT(*) AS cnt FROM users');
   if (parseInt(rows[0].cnt, 10) === 0) {
     const now = new Date().toISOString();
     const seedUsers = [
@@ -161,7 +189,7 @@ async function initDb() {
       { id: uuidv4(), name: 'كريم محمود', code: 'W103', role: 'worker' },
     ];
     for (const u of seedUsers) {
-      await pool.query(
+      await p.query(
         'INSERT INTO users (id, name, code, role, active, created_at) VALUES ($1, $2, $3, $4, 1, $5)',
         [u.id, u.name, u.code, u.role, now]
       );
@@ -169,7 +197,7 @@ async function initDb() {
     console.log('✅ Seeded default users (admin + 3 workers)');
   }
 
-  return pool;
+  return p;
 }
 
-module.exports = { initDb, queryAll, queryOne, run, transaction, pool };
+module.exports = { initDb, queryAll, queryOne, run, transaction, getPool };

@@ -38,6 +38,11 @@ let dbReady = false;
 let dbInitPromise = null;
 
 function ensureDb() {
+  if (!process.env.DATABASE_URL) {
+    const msg = 'متغير البيئة DATABASE_URL غير موجود في إعدادات Vercel! يرجى إضافته في إعدادات المشروع.';
+    console.error('❌ ' + msg);
+    return Promise.reject(new Error(msg));
+  }
   if (!dbInitPromise) {
     dbInitPromise = initDb()
       .then(() => {
@@ -60,7 +65,7 @@ app.use(async (req, res, next) => {
     }
     next();
   } catch (err) {
-    next(err);
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -832,7 +837,7 @@ app.use((err, req, res, next) => {
 });
 
 // Boot when running directly (node src/server.js)
-if (require.main === module || !process.env.VERCEL) {
+if (require.main === module) {
   ensureDb().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✅ Menoufia Inspections Backend running on http://0.0.0.0:${PORT}`);
@@ -840,7 +845,6 @@ if (require.main === module || !process.env.VERCEL) {
     });
   }).catch((err) => {
     console.error('❌ Failed to initialize database:', err.message);
-    process.exit(1);
   });
 }
 
