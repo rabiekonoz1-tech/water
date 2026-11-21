@@ -5,10 +5,15 @@ import { COMPLIANCE_ITEMS, LEVEL_COLORS, LEVEL_LABELS, OUTCOME_LABELS } from '..
 import {
   CarIcon,
   CheckCircleIcon,
+  CheckIcon,
+  Edit3Icon,
   FileEditIcon,
   MapPinIcon,
   RotateCcwIcon,
+  Trash2Icon,
   UnlockIcon,
+  WrenchIcon,
+  XCircleIcon,
 } from './Icons';
 import { api } from '../api';
 
@@ -153,7 +158,7 @@ export const FacilityDetail: React.FC<Props> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '30px' }}>
       {/* Edit Modal / Form View */}
       {showEdit ? (
         <form
@@ -650,9 +655,19 @@ export const FacilityDetail: React.FC<Props> = ({
                           color: isBad ? COLORS.red : COLORS.ink,
                           fontWeight: isBad ? '700' : '500',
                           padding: '2px 0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
                         }}
                       >
-                        {isBad ? '✗' : ans === 'na' ? '–' : '✓'} {c.label}
+                        {isBad ? (
+                          <XCircleIcon size={14} color={COLORS.red} style={{ flexShrink: 0 }} />
+                        ) : ans === 'na' ? (
+                          <span style={{ color: COLORS.muted }}>–</span>
+                        ) : (
+                          <CheckIcon size={14} color={COLORS.green} style={{ flexShrink: 0 }} />
+                        )}
+                        <span>{c.label}</span>
                       </div>
                     );
                   })}
@@ -741,8 +756,9 @@ export const FacilityDetail: React.FC<Props> = ({
             marginTop: '4px',
           }}
         >
-          <div style={{ fontSize: '13px', fontWeight: '800', color: COLORS.ink, marginBottom: '2px' }}>
-            🛠️ صلاحيات الإدارة للمنشأة:
+          <div style={{ fontSize: '13px', fontWeight: '800', color: COLORS.ink, marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <WrenchIcon size={16} color={COLORS.primary} />
+            <span>صلاحيات الإدارة للمنشأة:</span>
           </div>
 
           {/* Reset Action (with Sub-options) */}
@@ -791,7 +807,7 @@ export const FacilityDetail: React.FC<Props> = ({
                     disabled={loading}
                     onClick={() => handleReset('keep_history')}
                     style={{
-                      padding: '8px',
+                      padding: '8px 10px',
                       backgroundColor: '#ECFDF5',
                       border: '1px solid #10B981',
                       color: '#059669',
@@ -800,9 +816,13 @@ export const FacilityDetail: React.FC<Props> = ({
                       fontWeight: '800',
                       cursor: 'pointer',
                       textAlign: 'right',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
                     }}
                   >
-                    🔄 1. فتح للمعاينة مع حفظ السجل في الأرشيف (موصى به)
+                    <RotateCcwIcon size={14} color="#059669" />
+                    <span>1. فتح للمعاينة مع حفظ السجل في الأرشيف (موصى به)</span>
                   </button>
 
                   <button
@@ -810,7 +830,7 @@ export const FacilityDetail: React.FC<Props> = ({
                     disabled={loading}
                     onClick={() => handleReset('wipe')}
                     style={{
-                      padding: '8px',
+                      padding: '8px 10px',
                       backgroundColor: '#FEF2F2',
                       border: '1px solid #EF4444',
                       color: '#DC2626',
@@ -819,9 +839,13 @@ export const FacilityDetail: React.FC<Props> = ({
                       fontWeight: '800',
                       cursor: 'pointer',
                       textAlign: 'right',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
                     }}
                   >
-                    🗑️ 2. تصفير شامل ومسح المعاينة السابقة تماماً
+                    <Trash2Icon size={14} color="#DC2626" />
+                    <span>2. تصفير شامل ومسح المعاينة السابقة تماماً</span>
                   </button>
 
                   <button
@@ -864,7 +888,8 @@ export const FacilityDetail: React.FC<Props> = ({
                 cursor: 'pointer',
               }}
             >
-              <span>✏️ تعديل البيانات</span>
+              <Edit3Icon size={15} color={COLORS.primary} />
+              <span>تعديل البيانات</span>
             </button>
 
             <button
@@ -886,7 +911,8 @@ export const FacilityDetail: React.FC<Props> = ({
                 cursor: 'pointer',
               }}
             >
-              <span>🗑️ حذف</span>
+              <Trash2Icon size={15} color={COLORS.red} />
+              <span>حذف</span>
             </button>
           </div>
         </div>

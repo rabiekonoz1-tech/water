@@ -3,7 +3,7 @@ import { COLORS } from '../theme';
 import type { Facility, MonthlyPlan, User } from '../types';
 import { Chip } from '../components/Chip';
 import { FacilityCard } from '../components/FacilityCard';
-import { RefreshCwIcon, SearchIcon } from '../components/Icons';
+import { RefreshCwIcon, RotateCcwIcon, SearchIcon, XIcon } from '../components/Icons';
 import { api } from '../api';
 
 const MENOUFIA_CENTERS = [
@@ -278,7 +278,8 @@ export const PlanScreen: React.FC<Props> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  <span>🔄 ريسيت للخطة</span>
+                  <RotateCcwIcon size={13} color={COLORS.amber} />
+                  <span>ريسيت للخطة</span>
                 </button>
               </>
             )}
@@ -447,7 +448,7 @@ export const PlanScreen: React.FC<Props> = ({
                 fontWeight: 'bold',
               }}
             >
-              ✕
+              <XIcon size={12} color="#334155" />
             </button>
           ) : null}
         </div>
@@ -597,7 +598,9 @@ export const PlanScreen: React.FC<Props> = ({
               marginTop: '6px',
             }}
           >
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
+            <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}>
+              <SearchIcon size={36} color={COLORS.muted} />
+            </div>
             <p style={{ margin: 0 }}>لا توجد منشآت مطابقة للبحث أو الفلتر المحدد</p>
             <button
               type="button"
@@ -668,13 +671,14 @@ export const PlanScreen: React.FC<Props> = ({
                 style={{
                   background: 'none',
                   border: 'none',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: COLORS.muted,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer',
+                  padding: '4px',
                 }}
               >
-                ✕
+                <XIcon size={18} color={COLORS.muted} />
               </button>
             </div>
 
@@ -895,8 +899,9 @@ export const PlanScreen: React.FC<Props> = ({
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: COLORS.amber, margin: 0 }}>
-                🔄 إعادة فتح / ريسيت للخطة (الأدمن)
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: COLORS.amber, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <RotateCcwIcon size={18} color={COLORS.amber} />
+                <span>إعادة فتح / ريسيت للخطة (الأدمن)</span>
               </h3>
               <button
                 type="button"
@@ -904,13 +909,14 @@ export const PlanScreen: React.FC<Props> = ({
                 style={{
                   background: 'none',
                   border: 'none',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: COLORS.muted,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer',
+                  padding: '4px',
                 }}
               >
-                ✕
+                <XIcon size={18} color={COLORS.muted} />
               </button>
             </div>
 

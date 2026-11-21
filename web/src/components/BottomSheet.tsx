@@ -78,13 +78,13 @@ export const BottomSheet: React.FC<Props> = ({ isOpen, onClose, children }) => {
           position: 'relative',
           width: '100%',
           maxWidth: '500px',
-          maxHeight: '85vh',
+          maxHeight: '92vh',
           backgroundColor: COLORS.surface,
           borderTopLeftRadius: '22px',
           borderTopRightRadius: '22px',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 -4px 20px rgba(0,0,0,0.15)',
+          boxShadow: '0 -4px 25px rgba(0,0,0,0.2)',
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: dragY === 0 ? 'transform 0.15s ease-out' : 'none',
           overflow: 'hidden',
@@ -97,17 +97,18 @@ export const BottomSheet: React.FC<Props> = ({ isOpen, onClose, children }) => {
           onTouchEnd={handleTouchEnd}
           style={{
             width: '100%',
-            padding: '10px 0 6px 0',
+            padding: '12px 0 8px 0',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
             cursor: 'grab',
             touchAction: 'none',
+            flexShrink: 0,
           }}
         >
           <div
             style={{
-              width: '40px',
+              width: '44px',
               height: '5px',
               borderRadius: '3px',
               backgroundColor: '#CBD5E1',
@@ -119,9 +120,13 @@ export const BottomSheet: React.FC<Props> = ({ isOpen, onClose, children }) => {
         <div
           className="scroll-container"
           style={{
-            padding: '8px 16px 20px 16px',
+            padding: '4px 16px 28px 16px',
             overflowY: 'auto',
-            maxHeight: 'calc(85vh - 30px)',
+            maxHeight: 'calc(92vh - 35px)',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y',
+            flex: 1,
           }}
         >
           {children}

@@ -2,7 +2,7 @@ import React from 'react';
 import { COLORS } from '../theme';
 import type { Facility } from '../types';
 import { LEVEL_COLORS, LEVEL_LABELS, OUTCOME_LABELS } from '../constants';
-import { CalendarIcon, ChevronLeftIcon, MapPinIcon } from './Icons';
+import { AlertTriangleIcon, CalendarIcon, ChevronLeftIcon, MapPinIcon } from './Icons';
 
 interface Props {
   facility: Facility;
@@ -238,9 +238,13 @@ export const FacilityCard: React.FC<Props> = ({ facility, onClick }) => {
                 color: COLORS.amber,
                 fontSize: '11px',
                 fontWeight: '700',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
               }}
             >
-              ⚠️ تحتاج متابعة
+              <AlertTriangleIcon size={12} color={COLORS.amber} />
+              <span>تحتاج متابعة</span>
             </span>
           )}
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { COLORS } from '../theme';
+import { PenToolIcon } from './Icons';
 
 interface Props {
   initialSignature?: string;
@@ -194,13 +195,15 @@ export const SignaturePad: React.FC<Props> = ({ initialSignature, onSave, onClos
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: '8px',
                 color: '#94A3B8',
                 fontSize: '15px',
                 pointerEvents: 'none',
                 fontWeight: '600',
               }}
             >
-              ✍️ وقّع بيدك أو بالقلم هنا
+              <PenToolIcon size={18} color="#94A3B8" />
+              <span>وقّع بيدك أو بالقلم هنا</span>
             </div>
           )}
         </div>

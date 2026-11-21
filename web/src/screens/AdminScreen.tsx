@@ -7,7 +7,9 @@ import {
   AlertTriangleIcon,
   CheckCircleIcon,
   FileSpreadsheetIcon,
+  LightbulbIcon,
   RefreshCwIcon,
+  RotateCcwIcon,
   UnlockIcon,
   UploadCloudIcon,
   UserPlusIcon,
@@ -722,7 +724,7 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
                   gap: '6px',
                 }}
               >
-                <span>💡</span>
+                <LightbulbIcon size={16} color={COLORS.amber} />
                 <span>{uploadError.tip}</span>
               </div>
             )}
@@ -814,9 +816,13 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
                   padding: '6px 8px',
                   borderRadius: '6px',
                   marginTop: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                 }}
               >
-                ⚠️ تنبيه: {uploadSuccess.with_prior_major_violations} منشأة لها مخالفات جسيمة سابقة.
+                <AlertTriangleIcon size={14} color={COLORS.amber} />
+                <span>تنبيه: {uploadSuccess.with_prior_major_violations} منشأة لها مخالفات جسيمة سابقة.</span>
               </div>
             ) : null}
 
@@ -1060,9 +1066,13 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
                 fontSize: '11px',
                 fontWeight: '800',
                 cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
               }}
             >
-              🔄 إعادة فتح الكل
+              <RotateCcwIcon size={12} color={COLORS.amber} />
+              <span>إعادة فتح الكل</span>
             </button>
           )}
         </div>
