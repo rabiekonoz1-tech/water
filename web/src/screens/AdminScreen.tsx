@@ -240,11 +240,29 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
   };
 
   const handleUnlock = async (facilityId: string) => {
-    if (!window.confirm('هل تريد إعادة فتح المنشأة للمعاينة مرة أخرى؟')) return;
+    const isWipe = window.confirm(
+      'هل تريد مسح وتصفير المعاينة السابقة تماماً؟\n\nاضغط [موافق OK] للتصفير الشامل ومسح المعاينة السابقة.\nأو اضغط [إلغاء Cancel] لإعادة فتح المكان مع الاحتفاظ بالمعاينة السابقة في الأرشيف.'
+    );
+    const mode = isWipe ? 'wipe' : 'keep_history';
     try {
-      await api.unlockFacility(user.code, facilityId);
+      await api.resetFacility(user.code, facilityId, mode);
       onRefresh();
-      alert('تم فتح المنشأة مجدداً');
+      alert(isWipe ? 'تم تصفير المكان ومسح المعاينة بنجاح' : 'تمت إعادة فتح المكان للمعاينة مع حفظ السجل في الأرشيف');
+    } catch (err: any) {
+      alert('خطأ: ' + err.message);
+    }
+  };
+
+  const handleBulkUnlockAll = async () => {
+    if (lockedFacilities.length === 0) return;
+    const isWipe = window.confirm(
+      `هل تريد إعادة فتح جميع المنشآت المقفولة (${lockedFacilities.length} منشأة) دفعة واحدة؟\n\nاضغط [موافق OK] للتصفير الشامل ومسح المعاينات.\nأو اضغط [إلغاء Cancel] للفتح مع حفظ السجلات في الأرشيف.`
+    );
+    const mode = isWipe ? 'wipe' : 'keep_history';
+    try {
+      await api.bulkResetPlan(user.code, planId, 'all', mode);
+      onRefresh();
+      alert(`تمت إعادة فتح جميع المنشآت بنجاح (${lockedFacilities.length} منشأة)`);
     } catch (err: any) {
       alert('خطأ: ' + err.message);
     }
@@ -1024,9 +1042,30 @@ export const AdminScreen: React.FC<Props> = ({ user, facilities, planId, onRefre
           gap: '10px',
         }}
       >
-        <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.ink }}>
-          الأماكن المحجوزة والمقفولة ({lockedFacilities.length})
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '800', color: COLORS.ink, margin: 0 }}>
+            الأماكن المحجوزة والمقفولة ({lockedFacilities.length})
+          </h3>
+
+          {lockedFacilities.length > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkUnlockAll}
+              style={{
+                padding: '5px 10px',
+                borderRadius: '8px',
+                backgroundColor: COLORS.amberSoft,
+                border: `1px solid ${COLORS.amber}`,
+                color: COLORS.amber,
+                fontSize: '11px',
+                fontWeight: '800',
+                cursor: 'pointer',
+              }}
+            >
+              🔄 إعادة فتح الكل
+            </button>
+          )}
+        </div>
 
         {lockedFacilities.length === 0 ? (
           <div style={{ color: COLORS.muted, fontSize: '13px', textAlign: 'center', padding: '10px' }}>

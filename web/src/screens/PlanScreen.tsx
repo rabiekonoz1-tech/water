@@ -4,6 +4,23 @@ import type { Facility, MonthlyPlan, User } from '../types';
 import { Chip } from '../components/Chip';
 import { FacilityCard } from '../components/FacilityCard';
 import { RefreshCwIcon, SearchIcon } from '../components/Icons';
+import { api } from '../api';
+
+const MENOUFIA_CENTERS = [
+  'شبين الكوم',
+  'قويسنا',
+  'بركة السبع',
+  'الشهداء',
+  'منوف',
+  'الباجور',
+  'سرس الليان',
+  'أشمون',
+  'تلا',
+  'السادات',
+  'أخرى',
+];
+
+const ACTIVITY_TYPES = ['مطعم/مطبخ', 'مغسلة', 'مصنع', 'محطة/خدمات', 'مزرعة/مجزر', 'أخرى'];
 
 type StatusFilter = 'all' | 'available' | 'reserved' | 'completed' | 'mine';
 
@@ -39,6 +56,24 @@ export const PlanScreen: React.FC<Props> = ({
   const [search, setSearch] = useState('');
   const [centerFilter, setCenterFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const isAdmin = user.role === 'admin';
+
+  // Admin: Add Facility Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addCode, setAddCode] = useState('');
+  const [addAddress, setAddAddress] = useState('');
+  const [addCenter, setAddCenter] = useState('شبين الكوم');
+  const [addDate, setAddDate] = useState('');
+  const [addActivity, setAddActivity] = useState('أخرى');
+  const [addNotes, setAddNotes] = useState('');
+  const [submittingAdd, setSubmittingAdd] = useState(false);
+
+  // Admin: Bulk Reset Modal State
+  const [showBulkResetModal, setShowBulkResetModal] = useState(false);
+  const [bulkTarget, setBulkTarget] = useState<'completed' | 'reserved' | 'all'>('completed');
+  const [bulkMode, setBulkMode] = useState<'keep_history' | 'wipe'>('keep_history');
+  const [submittingBulk, setSubmittingBulk] = useState(false);
 
   // Centers with counts
   const centersWithCount = useMemo(() => {
@@ -84,6 +119,68 @@ export const PlanScreen: React.FC<Props> = ({
 
   const currentPlan = plans.find((p) => p.id === selectedPlanId) || plans[0];
 
+  // Admin: Create Facility Submit
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName.trim()) {
+      alert('اسم المنشأة مطلوب');
+      return;
+    }
+    setSubmittingAdd(true);
+    try {
+      await api.createFacility(user.code, selectedPlanId, {
+        name: addName.trim(),
+        facility_code: addCode.trim().toUpperCase(),
+        address: addAddress.trim(),
+        center: addCenter.trim(),
+        target_date: addDate.trim(),
+        activity_type: addActivity.trim(),
+        plan_notes: addNotes.trim(),
+      });
+      setShowAddModal(false);
+      setAddName('');
+      setAddCode('');
+      setAddAddress('');
+      setAddDate('');
+      setAddNotes('');
+      onRefresh();
+      alert('تمت إضافة المنشأة الجديدة بنجاح إلى الخطة!');
+    } catch (err: any) {
+      alert('خطأ في الإضافة: ' + err.message);
+    } finally {
+      setSubmittingAdd(false);
+    }
+  };
+
+  // Admin: Bulk Reset Submit
+  const handleBulkResetSubmit = async () => {
+    const targetLabel =
+      bulkTarget === 'completed'
+        ? 'المنشآت المكتملة'
+        : bulkTarget === 'reserved'
+        ? 'المنشآت المحجوزة'
+        : 'جميع منشآت الخطة';
+
+    const modeLabel =
+      bulkMode === 'keep_history' ? 'مع الاحتفاظ بالسجل التاريخي' : 'مع مسح وتصفير السجل تماماً';
+
+    if (!window.confirm(`هل أنت متأكد من إعادة فتح ${targetLabel} (${modeLabel})؟`)) {
+      return;
+    }
+
+    setSubmittingBulk(true);
+    try {
+      const res = await api.bulkResetPlan(user.code, selectedPlanId, bulkTarget, bulkMode);
+      setShowBulkResetModal(false);
+      onRefresh();
+      alert(res.message || `تمت إعادة فتح المنشآت بنجاح (${res.count} منشأة)`);
+    } catch (err: any) {
+      alert('تعذر عمل ريسيت: ' + err.message);
+    } finally {
+      setSubmittingBulk(false);
+    }
+  };
+
   return (
     <div
       className="scroll-container"
@@ -126,6 +223,8 @@ export const PlanScreen: React.FC<Props> = ({
             alignItems: 'center',
             padding: '2px 4px',
             flexShrink: 0,
+            flexWrap: 'wrap',
+            gap: '8px',
           }}
         >
           <div>
@@ -137,34 +236,82 @@ export const PlanScreen: React.FC<Props> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: '#FFFFFF',
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: '10px',
-              color: COLORS.primary,
-              fontWeight: '700',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              cursor: 'pointer',
-            }}
-          >
-            <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  style={{
+                    padding: '6px 10px',
+                    backgroundColor: COLORS.primary,
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.25)',
+                  }}
+                >
+                  <span>＋ إضافة مكان</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowBulkResetModal(true)}
+                  title="إعادة فتح الأماكن (ريسيت الخطة)"
+                  style={{
+                    padding: '6px 10px',
+                    backgroundColor: '#FEF3C7',
+                    border: '1px solid #FDE68A',
+                    color: '#B45309',
+                    borderRadius: '10px',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>🔄 ريسيت للخطة</span>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={onRefresh}
               style={{
-                display: 'inline-flex',
-                animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                padding: '6px 10px',
+                backgroundColor: '#FFFFFF',
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: '10px',
+                color: COLORS.primary,
+                fontWeight: '700',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                cursor: 'pointer',
               }}
             >
-              <RefreshCwIcon size={14} color={COLORS.primary} />
-            </span>
-            <span>{refreshing ? 'تحديث...' : 'تحديث'}</span>
-          </button>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                }}
+              >
+                <RefreshCwIcon size={14} color={COLORS.primary} />
+              </span>
+              <span>{refreshing ? '...' : 'تحديث'}</span>
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -480,6 +627,415 @@ export const PlanScreen: React.FC<Props> = ({
           ))
         )}
       </div>
+
+      {/* Admin: Add Facility Modal */}
+      {showAddModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '18px',
+              width: '100%',
+              maxWidth: '460px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: COLORS.ink, margin: 0 }}>
+                ＋ إضافة منشأة جديدة للخطة
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: COLORS.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                  مسمى المنشأة الصناعية: *
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثال: مصنع الأمل للألبان، مغسلة الصفا..."
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${COLORS.border}`,
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                    كود المنشأة (اختياري):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: SH155 أو QA30"
+                    value={addCode}
+                    onChange={(e) => setAddCode(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${COLORS.border}`,
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                    المركز: *
+                  </label>
+                  <select
+                    value={addCenter}
+                    onChange={(e) => setAddCenter(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${COLORS.border}`,
+                      backgroundColor: '#FFFFFF',
+                      fontSize: '13px',
+                    }}
+                  >
+                    {MENOUFIA_CENTERS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                  العنوان التفصيلي:
+                </label>
+                <input
+                  type="text"
+                  placeholder="مثال: شبين الكوم - بجوار المستشفى العام"
+                  value={addAddress}
+                  onChange={(e) => setAddAddress(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${COLORS.border}`,
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                    نوع النشاط:
+                  </label>
+                  <select
+                    value={addActivity}
+                    onChange={(e) => setAddActivity(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${COLORS.border}`,
+                      backgroundColor: '#FFFFFF',
+                      fontSize: '13px',
+                    }}
+                  >
+                    {ACTIVITY_TYPES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                    تاريخ المعاينة المستهدف:
+                  </label>
+                  <input
+                    type="date"
+                    value={addDate}
+                    onChange={(e) => setAddDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${COLORS.border}`,
+                      fontSize: '13px',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                  ملاحظات الخطة:
+                </label>
+                <input
+                  type="text"
+                  placeholder="أي تعليمات أو ملاحظات للمفتش"
+                  value={addNotes}
+                  onChange={(e) => setAddNotes(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${COLORS.border}`,
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="submit"
+                  disabled={submittingAdd}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    backgroundColor: COLORS.primary,
+                    color: '#FFFFFF',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: submittingAdd ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {submittingAdd ? 'جارٍ الحفظ...' : 'إضافة المنشأة للخطة'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={submittingAdd}
+                  onClick={() => setShowAddModal(false)}
+                  style={{
+                    padding: '11px 16px',
+                    backgroundColor: '#E2E8F0',
+                    color: '#334155',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: Bulk Reset Modal */}
+      {showBulkResetModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              padding: '18px',
+              width: '100%',
+              maxWidth: '440px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: COLORS.amber, margin: 0 }}>
+                🔄 إعادة فتح / ريسيت للخطة (الأدمن)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBulkResetModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: COLORS.muted,
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '13px', color: COLORS.ink, margin: 0, lineHeight: 1.4 }}>
+              يمكنك إعادة فتح المنشآت التي تمت معاينتها أو المحجوزة لتصبح متاحة للمعاينة من جديد.
+            </p>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                أي المنشآت تريد إعادة فتحها؟
+              </label>
+              <select
+                value={bulkTarget}
+                onChange={(e) => setBulkTarget(e.target.value as any)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${COLORS.border}`,
+                  backgroundColor: '#FFFFFF',
+                  fontSize: '13px',
+                }}
+              >
+                <option value="completed">المنشآت المكتملة فقط ({completedCount} منشأة)</option>
+                <option value="reserved">المنشآت المحجوزة في الطريق فقط ({reservedCount} منشأة)</option>
+                <option value="all">كافة المنشآت المقفولة والمحجوزة</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: COLORS.ink, display: 'block', marginBottom: '4px' }}>
+                نوع الريسيت:
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: `1px solid ${bulkMode === 'keep_history' ? COLORS.primary : COLORS.border}`,
+                    backgroundColor: bulkMode === 'keep_history' ? '#F0F9FF' : '#FFFFFF',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="bulkMode"
+                    value="keep_history"
+                    checked={bulkMode === 'keep_history'}
+                    onChange={() => setBulkMode('keep_history')}
+                  />
+                  <span>
+                    <strong>حفظ السجل القديم في الأرشيف (موصى به):</strong> يفتح المنشآت لمعاينة جديدة مع بقاء المعاينات السابقة في السجل.
+                  </span>
+                </label>
+
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: `1px solid ${bulkMode === 'wipe' ? COLORS.red : COLORS.border}`,
+                    backgroundColor: bulkMode === 'wipe' ? '#FEF2F2' : '#FFFFFF',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="bulkMode"
+                    value="wipe"
+                    checked={bulkMode === 'wipe'}
+                    onChange={() => setBulkMode('wipe')}
+                  />
+                  <span style={{ color: COLORS.red }}>
+                    <strong>مسح وتصفير شامل:</strong> يحذف المعاينات السابقة لهذه المنشآت نهائياً كأنها لم تُعاين قط.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+              <button
+                type="button"
+                disabled={submittingBulk}
+                onClick={handleBulkResetSubmit}
+                style={{
+                  flex: 1,
+                  padding: '11px',
+                  backgroundColor: COLORS.amber,
+                  color: '#FFFFFF',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: submittingBulk ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {submittingBulk ? 'جارٍ إعادة الفتح...' : 'تأكيد وإعادة الفتح'}
+              </button>
+
+              <button
+                type="button"
+                disabled={submittingBulk}
+                onClick={() => setShowBulkResetModal(false)}
+                style={{
+                  padding: '11px 16px',
+                  backgroundColor: '#E2E8F0',
+                  color: '#334155',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
