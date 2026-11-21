@@ -216,11 +216,14 @@ export const InspectionForm: React.FC<Props> = ({ user, facility, onDone, onCanc
       style={{
         position: 'fixed',
         inset: 0,
+        maxWidth: '500px',
+        margin: '0 auto',
         zIndex: 50,
         backgroundColor: COLORS.bg,
         display: 'flex',
         flexDirection: 'column',
         height: '100dvh',
+        overflowX: 'hidden',
       }}
     >
       {/* Top Header */}
@@ -427,58 +430,82 @@ export const InspectionForm: React.FC<Props> = ({ user, facility, onDone, onCanc
                   }}
                 />
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="العدد"
-                    value={s.count || ''}
-                    onChange={(e) => updateSample(s.id, { count: parseInt(e.target.value, 10) || 0 })}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${COLORS.border}`,
-                      backgroundColor: '#FFF',
-                      textAlign: 'center',
-                    }}
-                  />
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="14"
-                    placeholder="pH"
-                    value={s.ph == null ? '' : s.ph}
-                    onChange={(e) =>
-                      updateSample(s.id, { ph: e.target.value ? parseFloat(e.target.value) : null })
-                    }
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${COLORS.border}`,
-                      backgroundColor: '#FFF',
-                      textAlign: 'center',
-                    }}
-                  />
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="الحرارة °م"
-                    value={s.temperature == null ? '' : s.temperature}
-                    onChange={(e) =>
-                      updateSample(s.id, { temperature: e.target.value ? parseFloat(e.target.value) : null })
-                    }
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: `1px solid ${COLORS.border}`,
-                      backgroundColor: '#FFF',
-                      textAlign: 'center',
-                    }}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px', width: '100%' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: COLORS.muted, marginBottom: '4px', textAlign: 'center' }}>
+                      العدد
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="1"
+                      value={s.count || ''}
+                      onChange={(e) => updateSample(s.id, { count: parseInt(e.target.value, 10) || 0 })}
+                      style={{
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
+                        padding: '10px 4px',
+                        borderRadius: '8px',
+                        border: `1px solid ${COLORS.border}`,
+                        backgroundColor: '#FFF',
+                        textAlign: 'center',
+                        fontSize: '14px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: COLORS.muted, marginBottom: '4px', textAlign: 'center' }}>
+                      pH
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="14"
+                      placeholder="7.0"
+                      value={s.ph == null ? '' : s.ph}
+                      onChange={(e) =>
+                        updateSample(s.id, { ph: e.target.value ? parseFloat(e.target.value) : null })
+                      }
+                      style={{
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
+                        padding: '10px 4px',
+                        borderRadius: '8px',
+                        border: `1px solid ${COLORS.border}`,
+                        backgroundColor: '#FFF',
+                        textAlign: 'center',
+                        fontSize: '14px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: COLORS.muted, marginBottom: '4px', textAlign: 'center' }}>
+                      الحرارة °م
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="°م"
+                      value={s.temperature == null ? '' : s.temperature}
+                      onChange={(e) =>
+                        updateSample(s.id, { temperature: e.target.value ? parseFloat(e.target.value) : null })
+                      }
+                      style={{
+                        width: '100%',
+                        minWidth: 0,
+                        boxSizing: 'border-box',
+                        padding: '10px 4px',
+                        borderRadius: '8px',
+                        border: `1px solid ${COLORS.border}`,
+                        backgroundColor: '#FFF',
+                        textAlign: 'center',
+                        fontSize: '14px',
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
