@@ -65,22 +65,6 @@ async function transaction(fn) {
     client.release();
   }
 }
-      const rows = await clientQueryAll(sql, params);
-      return rows.length > 0 ? rows[0] : null;
-    };
-    const clientRun = async (sql, params = []) => {
-      await client.query(toPgPlaceholders(sql), params);
-    };
-    const result = await fn({ queryAll: clientQueryAll, queryOne: clientQueryOne, run: clientRun });
-    await client.query('COMMIT');
-    return result;
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-}
 
 // Convert SQLite-style ? placeholders to PostgreSQL $1, $2, … placeholders
 function toPgPlaceholders(sql) {
